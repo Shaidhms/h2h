@@ -9,7 +9,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "server": "node server.js",
-    "client": "vite"
+    "client": "vite",
+    "vercel-build": "vite build"
   },
   "repository": {
     "type": "git",
