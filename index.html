@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="A Social Media Content Generator — Powered by OpenAI ChatGPT">
+  <title>📰 From Headlines to Hashtags</title>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Exo+2:wght@300;400;500;600;700&family=Orbitron:wght@400;500;600;700;800;900&family=Inter:wght@300;400;500;600;700&display=swap"
+    rel="stylesheet">
+
+  <!-- Remix Icon -->
+  <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+
+  <link rel="stylesheet" href="/src/style.css">
+</head>
+
+<body>
+  <div class="app-bg"></div>
+  <div class="scanline"></div>
+
+  <div class="app-container">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="logo-container">
+        <h1 class="app-title">HEADLINES <span class="highlight">2</span> HASHTAGS</h1>
+        <i class="ri-hashtag logo-icon"></i>
+      </div>
+      <div class="header-actions">
+        <button id="guide-btn" class="btn btn-icon" title="How to use"><i class="ri-question-line"></i></button>
+      </div>
+    </header>
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-content">
+        <h2 class="sidebar-title"><i class="ri-settings-3-line"></i> SYSTEM CONFIG</h2>
+
+        <div class="form-group">
+          <label><i class="ri-price-tag-3-line"></i> Category</label>
+          <div class="custom-select" id="category-custom-select">
+            <div class="select-selected">
+              <i class="ri-global-line"></i> General
+            </div>
+            <div class="select-items select-hide">
+              <div data-value="general"><i class="ri-global-line"></i> General</div>
+              <div data-value="technology"><i class="ri-computer-line"></i> Technology</div>
+              <div data-value="business"><i class="ri-briefcase-4-line"></i> Business</div>
+              <div data-value="health"><i class="ri-heart-pulse-line"></i> Health</div>
+              <div data-value="science"><i class="ri-flask-line"></i> Science</div>
+              <div data-value="sports"><i class="ri-football-line"></i> Sports</div>
+              <div data-value="entertainment"><i class="ri-movie-2-line"></i> Entertainment</div>
+            </div>
+            <input type="hidden" id="category-select" value="general">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label><i class="ri-global-line"></i> Country</label>
+          <div class="custom-select" id="country-custom-select">
+            <div class="select-selected">
+              <span>🇺🇸</span> United States
+            </div>
+            <div class="select-items select-hide">
+              <div data-value="us"><span>🇺🇸</span> United States</div>
+              <div data-value="in"><span>🇮🇳</span> India</div>
+              <div data-value="uk"><span>🇬🇧</span> United Kingdom</div>
+              <div data-value="ca"><span>🇨🇦</span> Canada</div>
+              <div data-value="au"><span>🇦🇺</span> Australia</div>
+              <div data-value="fr"><span>🇫🇷</span> France</div>
+              <div data-value="de"><span>🇩🇪</span> Germany</div>
+              <div data-value="jp"><span>🇯🇵</span> Japan</div>
+            </div>
+            <input type="hidden" id="country-select" value="us">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label><i class="ri-share-forward-line"></i> Platform</label>
+          <div class="custom-select" id="platform-custom-select">
+            <div class="select-selected">
+              <i class="ri-twitter-x-line"></i> Twitter / X
+            </div>
+            <div class="select-items select-hide">
+              <div data-value="twitter"><i class="ri-twitter-x-line"></i> Twitter / X</div>
+              <div data-value="linkedin"><i class="ri-linkedin-fill"></i> LinkedIn</div>
+              <div data-value="instagram"><i class="ri-instagram-line"></i> Instagram</div>
+              <div data-value="facebook"><i class="ri-facebook-fill"></i> Facebook</div>
+              <div data-value="tiktok"><i class="ri-tiktok-fill"></i> TikTok</div>
+            </div>
+            <input type="hidden" id="platform-select" value="twitter">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label><i class="ri-equalizer-line"></i> Tone</label>
+          <div class="custom-select" id="tone-custom-select">
+            <div class="select-selected">
+              <i class="ri-book-open-line"></i> Informative
+            </div>
+            <div class="select-items select-hide">
+              <div data-value="informative"><i class="ri-book-open-line"></i> Informative</div>
+              <div data-value="engaging"><i class="ri-emotion-happy-line"></i> Engaging</div>
+              <div data-value="professional"><i class="ri-user-tie-line"></i> Professional</div>
+              <div data-value="casual"><i class="ri-cup-line"></i> Casual</div>
+              <div data-value="humorous"><i class="ri-emotion-laugh-line"></i> Humorous</div>
+            </div>
+            <input type="hidden" id="tone-select" value="informative">
+          </div>
+        </div>
+
+        <div class="sidebar-footer">
+          <div class="status-indicator">
+            <span class="status-dot"></span>
+            <span class="status-text">SYSTEM ONLINE</span>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <!-- Hero Section (Visible only initially) -->
+      <div id="hero-section" class="hero-section">
+        <div class="hero-content">
+          <h2 class="hero-title">AI-POWERED <br>CONTENT ENGINE</h2>
+          <p class="hero-subtitle">Transform global headlines into viral social media content with the power of GPT-4.
+          </p>
+          <div class="hero-stats">
+            <div class="stat-item">
+              <span class="stat-value">24h</span>
+              <span class="stat-label">Fresh News</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-value">5+</span>
+              <span class="stat-label">Platforms</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-value">AI</span>
+              <span class="stat-label">Optimized</span>
+            </div>
+          </div>
+          <button id="start-btn" class="btn btn-primary btn-lg btn-glow">INITIALIZE SYSTEM <i
+              class="ri-arrow-right-line"></i></button>
+        </div>
+      </div>
+
+      <!-- App Interface (Hidden initially) -->
+      <div id="app-interface" class="app-interface hidden">
+        <!-- Tabs Navigation -->
+        <div class="tabs-nav">
+          <button class="tab-button active" data-tab="fetch-news"><i class="ri-newspaper-line"></i> Fetch News</button>
+          <button class="tab-button" data-tab="create-content"><i class="ri-edit-2-line"></i> Create Content</button>
+          <button class="tab-button" data-tab="series"><i class="ri-file-list-3-line"></i> Series</button>
+          <button class="tab-button" data-tab="analytics"><i class="ri-bar-chart-grouped-line"></i> Analytics</button>
+        </div>
+
+        <!-- Tab Contents -->
+        <div class="tabs-content">
+          <!-- Tab 1: Fetch News -->
+          <div class="tab-pane active" id="fetch-news">
+            <div class="tab-header">
+              <h2><i class="ri-radar-line"></i> LIVE NEWS FEED</h2>
+              <button id="fetch-news-btn" class="btn btn-primary btn-glow"><i class="ri-refresh-line"></i> SCAN FOR
+                NEWS</button>
+            </div>
+            <div id="news-container" class="news-container">
+              <div class="empty-state">
+                <i class="ri-radar-fill empty-icon"></i>
+                <p>SYSTEM READY. INITIATE SCAN.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tab 2: Create Content -->
+          <div class="tab-pane" id="create-content">
+            <div class="tab-header">
+              <h2><i class="ri-magic-line"></i> CONTENT GENERATOR</h2>
+            </div>
+            <div id="selected-article-container" class="selected-article-container">
+              <div class="empty-state">
+                <i class="ri-cursor-line empty-icon"></i>
+                <p>SELECT TARGET DATA FROM NEWS FEED.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tab 3: Series -->
+          <div class="tab-pane" id="series">
+            <div class="tab-header">
+              <h2><i class="ri-stack-line"></i> THREAD BUILDER</h2>
+              <button id="generate-series-btn" class="btn btn-primary btn-glow" disabled><i class="ri-film-line"></i>
+                GENERATE SERIES</button>
+            </div>
+            <div id="series-container" class="series-container">
+              <div class="empty-state">
+                <i class="ri-database-2-line empty-icon"></i>
+                <p>INSUFFICIENT DATA. FETCH 2+ ARTICLES.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tab 4: Analytics -->
+          <div class="tab-pane" id="analytics">
+            <div class="tab-header">
+              <h2><i class="ri-pie-chart-2-line"></i> STRATEGIC ANALYSIS</h2>
+              <button id="analyze-news-btn" class="btn btn-primary btn-glow" disabled><i class="ri-search-eye-line"></i>
+                RUN DIAGNOSTICS</button>
+            </div>
+            <div id="analytics-container" class="analytics-container">
+              <div class="empty-state">
+                <i class="ri-line-chart-line empty-icon"></i>
+                <p>NO DATA TO ANALYZE.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="app-footer">
+      <div class="footer-content">
+        <span>Built with curiosity by <strong>S.H.A.A.I solutions</strong></span>
+      </div>
+    </footer>
+  </div>
+
+  <!-- Onboarding Modal -->
+  <div id="onboarding-modal" class="modal">
+    <div class="modal-content glass-panel">
+      <button class="close-modal"><i class="ri-close-line"></i></button>
+      <div class="modal-header">
+        <i class="ri-command-line modal-icon"></i>
+        <h2>SYSTEM GUIDE</h2>
+      </div>
+      <div class="steps-container">
+        <div class="step-item">
+          <div class="step-number">01</div>
+          <div class="step-info">
+            <h3>Configure</h3>
+            <p>Set target parameters in the left control panel.</p>
+          </div>
+        </div>
+        <div class="step-item">
+          <div class="step-number">02</div>
+          <div class="step-info">
+            <h3>Scan</h3>
+            <p>Click "Scan for News" to retrieve live intelligence.</p>
+          </div>
+        </div>
+        <div class="step-item">
+          <div class="step-number">03</div>
+          <div class="step-info">
+            <h3>Generate</h3>
+            <p>Select intel and deploy to content generator.</p>
+          </div>
+        </div>
+      </div>
+      <button id="close-guide-btn" class="btn btn-primary btn-full">ACKNOWLEDGE</button>
+    </div>
+  </div>
+
+  <!-- Loading Overlay -->
+  <div id="loading-overlay" class="loading-overlay">
+    <div class="cyber-spinner">
+      <div class="spinner-inner"></div>
+    </div>
+    <p class="loading-text">PROCESSING DATA...</p>
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+
+</html>

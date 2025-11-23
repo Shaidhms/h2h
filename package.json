@@ -1,0 +1,35 @@
+{
+  "name": "headlines2hastag",
+  "version": "1.0.0",
+  "description": "A Social Media Content Generator — Powered by OpenAI ChatGPT",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "dev": "concurrently \"node server.js\" \"vite\"",
+    "build": "vite build",
+    "preview": "vite preview",
+    "server": "node server.js",
+    "client": "vite"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Shaidhms/headlines-to-hashtags-using-streamlit-flaskapi.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Shaidhms/headlines-to-hashtags-using-streamlit-flaskapi/issues"
+  },
+  "homepage": "https://github.com/Shaidhms/headlines-to-hashtags-using-streamlit-flaskapi#readme",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^5.1.0",
+    "openai": "^6.9.1",
+    "vite": "^7.2.4"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}
