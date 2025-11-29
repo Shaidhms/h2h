@@ -92,6 +92,7 @@ const elements = {
   switchToSignup: document.getElementById('switch-to-signup'),
   emailInput: document.getElementById('email'),
   passwordInput: document.getElementById('password'),
+  googleSignInBtn: document.getElementById('google-signin-btn'),
 
   // Pricing Modal
   pricingModal: document.getElementById('pricing-modal'),
@@ -132,6 +133,12 @@ async function checkAuth() {
     // For now, we'll store credits in localStorage for demo purposes if DB isn't set up
     const savedCredits = localStorage.getItem(`credits_${state.user.id}`);
     state.credits = savedCredits ? parseInt(savedCredits) : 5; // Give 5 free credits on signup
+
+    // For new OAuth users, give them initial credits
+    if (!savedCredits && session.user.app_metadata.provider === 'google') {
+      localStorage.setItem(`credits_${state.user.id}`, '5');
+      state.credits = 5;
+    }
   } else {
     state.user = null;
     state.credits = 0;
@@ -139,6 +146,37 @@ async function checkAuth() {
 
   updateAuthUI();
 }
+
+// Listen for auth state changes (handles OAuth callback)
+supabase.auth.onAuthStateChange((event, session) => {
+  console.log('Auth state changed:', event);
+
+  if (event === 'SIGNED_IN' && session) {
+    state.user = session.user;
+    const savedCredits = localStorage.getItem(`credits_${state.user.id}`);
+
+    if (!savedCredits) {
+      // New user - give initial credits
+      localStorage.setItem(`credits_${state.user.id}`, '5');
+      state.credits = 5;
+    } else {
+      state.credits = parseInt(savedCredits);
+    }
+
+    updateAuthUI();
+
+    // Close auth modal if open
+    if (elements.authModal) {
+      elements.authModal.classList.add('hidden');
+    }
+
+    showNotification('WELCOME! LOGGED IN SUCCESSFULLY', 'success');
+  } else if (event === 'SIGNED_OUT') {
+    state.user = null;
+    state.credits = 0;
+    updateAuthUI();
+  }
+});
 
 async function handleLogin(email, password) {
   const { data, error } = await supabase.auth.signInWithPassword({
@@ -167,6 +205,25 @@ async function handleSignup(email, password) {
   }
 
   return data.user;
+}
+
+async function handleGoogleSignIn() {
+  try {
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: window.location.origin
+      }
+    });
+
+    if (error) throw error;
+
+    // The redirect will happen automatically
+    // After redirect, the session will be handled by checkAuth
+  } catch (error) {
+    console.error('Google Sign-In Error:', error);
+    showNotification('GOOGLE SIGN-IN FAILED: ' + error.message, 'error');
+  }
 }
 
 async function handleLogout() {
@@ -1150,6 +1207,14 @@ function initEventListeners() {
           elements.switchToSignup.click(); // Toggle back
         });
       }
+    });
+  }
+
+  // Google Sign-In
+  if (elements.googleSignInBtn) {
+    elements.googleSignInBtn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      await handleGoogleSignIn();
     });
   }
 
