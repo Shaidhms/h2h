@@ -16,6 +16,7 @@ except ImportError:
     OpenAI = getattr(openai, "OpenAI")
 
 load_dotenv()
+import feedparser
 
 app = Flask(__name__)
 CORS(app)
@@ -34,63 +35,64 @@ def health():
 @app.route("/generate_news", methods=["GET"])
 def generate_news():
     """
-    Generate top news summaries via GPT for a given country/category.
-    Freshness: published_at must be today or within the last 2 days.
+    Fetch real news from Google News RSS feeds.
+    Returns articles with REAL, working URLs.
     """
     try:
-        if client is None:
-            return jsonify({"success": False, "error": "OpenAI API key missing"}), 400
-
         country = request.args.get("country", "us")
         category = request.args.get("category", "general")
         limit = int(request.args.get("limit", 5))
 
-        today = datetime.utcnow().strftime("%Y-%m-%d")
+        # Map categories to search terms
+        category_search = {
+            "general": "latest news",
+            "business": "business",
+            "technology": "technology",
+            "entertainment": "entertainment",
+            "sports": "sports",
+            "science": "science",
+            "health": "health"
+        }
 
-        system_prompt = f"""You are a global news summarizer.
-Return ONLY valid JSON (no markdown, no commentary).
-JSON must be an array of objects with keys:
-- title
-- description
-- source
-- published_at  (must be {today} or within the last 2 days; use ISO-like YYYY-MM-DD)
-- url
-Constraints:
-- Focus on the requested country and category.
-- Return exactly the requested number of items.
-- Be realistic and timely, but you may invent plausible headlines if needed.
-- Do NOT include anything older than 2 days.
-"""
+        search_term = category_search.get(category.lower(), "latest news")
+        
+        # Use Google News search RSS (more reliable than topic RSS)
+        rss_url = f"https://news.google.com/rss/search?q={search_term}+when:2d&hl=en-{country.upper()}&gl={country.upper()}&ceid={country.upper()}:en"
+        
+        print(f"Fetching RSS from: {rss_url}")
 
-        user_prompt = f"Country: {country}\nCategory: {category}\nNumber of items: {limit}"
+        # Parse RSS feed with User-Agent header
+        feed = feedparser.parse(rss_url, agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36')
+        
+        if not feed.entries:
+            return jsonify({"success": False, "error": "No articles found in RSS feed"}), 404
 
-        resp = client.chat.completions.create(
-            model="gpt-4.1-nano",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-            temperature=0.5,
-            max_tokens=600,
-        )
+        # Convert to required format
+        articles = []
+        for entry in feed.entries[:limit]:
+            # Parse date
+            pub_date = entry.get("published_parsed")
+            if pub_date:
+                date_str = f"{pub_date.tm_mday:02d}/{pub_date.tm_mon:02d}/{pub_date.tm_year}"
+            else:
+                date_str = datetime.utcnow().strftime("%d/%m/%Y")
+            
+            articles.append({
+                "title": entry.title,
+                "url": entry.link,  # REAL URL from RSS
+                "Date Published": date_str
+            })
 
-        content = resp.choices[0].message.content.strip()
-
-        try:
-            articles = json.loads(content)
-            if not isinstance(articles, list):
-                raise ValueError("Expected list of articles")
-        except Exception as e:
-            return jsonify(
-                {"success": False, "error": f"Invalid JSON from GPT: {e}", "raw": content}
-            ), 502
-
-        return jsonify(
-            {"success": True, "articles": articles[:limit], "count": len(articles)}
-        )
+        return jsonify({
+            "success": True,
+            "articles": articles,
+            "count": len(articles)
+        })
 
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        print(f"Error fetching RSS: {e}")
+        return jsonify({"success": False, "error": f"Failed to fetch news: {str(e)}"}), 500
+
 
 
 @app.route("/create_social_content", methods=["POST"])

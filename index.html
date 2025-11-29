@@ -33,6 +33,11 @@
         <i class="ri-hashtag logo-icon"></i>
       </div>
       <div class="header-actions">
+        <div id="user-profile-header" style="display: none; align-items: center; gap: 1rem; margin-right: 1rem;">
+          <span id="header-credits" style="color: var(--neon-cyan); font-weight: bold; font-size: 0.9rem;">0 CR</span>
+          <div class="user-avatar" id="user-avatar"></div>
+        </div>
+        <button id="login-btn" class="btn btn-primary btn-sm"><i class="ri-login-circle-line"></i> LOGIN</button>
         <button id="mobile-menu-btn" class="btn btn-icon mobile-only" title="Open Menu"><i
             class="ri-menu-line"></i></button>
         <button id="guide-btn" class="btn btn-icon" title="How to use"><i class="ri-question-line"></i></button>
@@ -40,11 +45,33 @@
     </header>
 
     <!-- Sidebar -->
-    <aside class="sidebar">
+    <aside class="sidebar" id="sidebar">
+
+      <!-- User Profile Section (Sidebar) -->
+      <div id="sidebar-user-profile" class="config-section hidden"
+        style="border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 1rem; margin-bottom: 1rem;">
+        <div style="display: flex; align-items: center; gap: 1rem;">
+          <div class="user-avatar-large" id="sidebar-avatar"></div>
+          <div>
+            <div id="sidebar-email"
+              style="font-weight: bold; font-size: 0.9rem; overflow: hidden; text-overflow: ellipsis; max-width: 140px;">
+              user@example.com</div>
+            <div style="color: var(--neon-cyan); font-size: 0.85rem; margin-top: 0.2rem;">
+              <i class="ri-coin-line"></i> <span id="sidebar-credits">0</span> Credits
+            </div>
+          </div>
+        </div>
+        <button id="buy-credits-btn" class="btn btn-primary btn-sm btn-glow" style="width: 100%; margin-top: 1rem;">
+          <i class="ri-vip-crown-line"></i> GET CREDITS
+        </button>
+        <button id="logout-btn" class="btn btn-secondary btn-sm" style="width: 100%; margin-top: 0.5rem;">
+          <i class="ri-logout-box-line"></i> LOGOUT
+        </button>
+      </div>
+
       <div class="sidebar-content">
         <div class="sidebar-header-mobile">
           <h2 class="sidebar-title"><i class="ri-settings-3-line"></i> SYSTEM CONFIG</h2>
-          <button id="close-sidebar-btn" class="btn btn-icon mobile-only"><i class="ri-close-line"></i></button>
         </div>
 
         <!-- Content Type Selector -->
@@ -361,6 +388,90 @@
       <div class="spinner-inner"></div>
     </div>
     <p class="loading-text">PROCESSING DATA...</p>
+  </div>
+
+  <!-- Auth Modal -->
+  <div id="auth-modal" class="modal hidden">
+    <div class="modal-content">
+      <button class="modal-close" id="auth-modal-close"><i class="ri-close-line"></i></button>
+      <h2 class="modal-title" id="auth-title">LOGIN</h2>
+      <p class="modal-subtitle" id="auth-subtitle">Access your account to generate more content.</p>
+
+      <form id="auth-form">
+        <div class="form-group">
+          <label for="email">Email Address</label>
+          <input type="email" id="email" placeholder="Enter your email" required>
+        </div>
+        <div class="form-group">
+          <label for="password">Password</label>
+          <input type="password" id="password" placeholder="Enter your password" required>
+        </div>
+        <button type="submit" class="btn btn-primary btn-glow" style="width: 100%; margin-top: 1rem;">
+          <span id="auth-btn-text">LOGIN</span>
+        </button>
+      </form>
+
+      <div class="auth-footer">
+        <p id="auth-switch-text">Don't have an account? <a href="#" id="switch-to-signup">Sign Up</a></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pricing Modal -->
+  <div id="pricing-modal" class="modal hidden">
+    <div class="modal-content modal-large">
+      <button class="modal-close" id="pricing-modal-close"><i class="ri-close-line"></i></button>
+      <h2 class="modal-title" style="text-align: center;">UPGRADE YOUR PLAN</h2>
+      <p class="modal-subtitle" style="text-align: center;">Choose a credit pack that suits your needs.</p>
+
+      <div class="pricing-grid">
+        <!-- Starter Pack -->
+        <div class="pricing-card">
+          <div class="pricing-header">
+            <h3>STARTER</h3>
+            <div class="price">₹49</div>
+            <div class="credits">5 CREDITS</div>
+          </div>
+          <ul class="pricing-features">
+            <li><i class="ri-check-line"></i> 5 AI Generations</li>
+            <li><i class="ri-check-line"></i> DALL-E 3 Images</li>
+            <li><i class="ri-check-line"></i> Priority Support</li>
+          </ul>
+          <button class="btn btn-secondary" onclick="buyCredits(5)">BUY NOW</button>
+        </div>
+
+        <!-- Creator Pack -->
+        <div class="pricing-card featured">
+          <div class="popular-tag">MOST POPULAR</div>
+          <div class="pricing-header">
+            <h3>CREATOR</h3>
+            <div class="price">₹199</div>
+            <div class="credits">25 CREDITS</div>
+          </div>
+          <ul class="pricing-features">
+            <li><i class="ri-check-line"></i> 25 AI Generations</li>
+            <li><i class="ri-check-line"></i> DALL-E 3 Images</li>
+            <li><i class="ri-check-line"></i> Priority Support</li>
+          </ul>
+          <button class="btn btn-primary btn-glow" onclick="buyCredits(25)">BUY NOW</button>
+        </div>
+
+        <!-- Pro Pack -->
+        <div class="pricing-card">
+          <div class="pricing-header">
+            <h3>PRO</h3>
+            <div class="price">₹499</div>
+            <div class="credits">75 CREDITS</div>
+          </div>
+          <ul class="pricing-features">
+            <li><i class="ri-check-line"></i> 75 AI Generations</li>
+            <li><i class="ri-check-line"></i> DALL-E 3 Images</li>
+            <li><i class="ri-check-line"></i> Priority Support</li>
+          </ul>
+          <button class="btn btn-secondary" onclick="buyCredits(75)">BUY NOW</button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script type="module" src="/src/main.js"></script>

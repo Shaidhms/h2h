@@ -5,11 +5,17 @@ import express from 'express';
 import cors from 'cors';
 import OpenAI from 'openai';
 import dotenv from 'dotenv';
+import Parser from 'rss-parser';
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5001;
+const parser = new Parser({
+  headers: {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+  }
+});
 
 // Middleware
 app.use(cors());
@@ -27,60 +33,64 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'Headlines to Hashtags API running' });
 });
 
-// Generate news headlines
+// Generate news headlines (NOW FETCHING REAL RSS)
 app.get('/api/generate-news', async (req, res) => {
   try {
-    if (!process.env.OPENAI_API_KEY) {
-      return res.status(400).json({ success: false, error: 'OpenAI API key missing' });
-    }
-
     const { country = 'us', category = 'general', limit = 5 } = req.query;
-    const today = new Date().toISOString().split('T')[0];
 
-    const systemPrompt = `You are a global news summarizer.
-Return ONLY valid JSON (no markdown, no commentary).
-JSON must be an array of objects with keys:
-- title
-- description
-- source
-- published_at  (must be ${today} or within the last 2 days; use ISO-like YYYY-MM-DD)
-- url
-Constraints:
-- Focus on the requested country and category.
-- Return exactly the requested number of items.
-- Be realistic and timely, but you may invent plausible headlines if needed.
-- Do NOT include anything older than 2 days.`;
+    // Map categories to search terms (same as Flask)
+    const categorySearch = {
+      'general': 'latest news',
+      'business': 'business',
+      'technology': 'technology',
+      'entertainment': 'entertainment',
+      'sports': 'sports',
+      'science': 'science',
+      'health': 'health'
+    };
 
-    const userPrompt = `Country: ${country}\nCategory: ${category}\nNumber of items: ${limit}`;
+    const searchTerm = categorySearch[category] || 'latest news';
 
-    const response = await openai.chat.completions.create({
-      model: process.env.OPENAI_NEWS_MODEL || 'gpt-4o-mini',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
-      ],
-      temperature: 0.5,
-      max_tokens: 600,
+    // Use Google News search RSS (more reliable than topic RSS)
+    const rssUrl = `https://news.google.com/rss/search?q=${searchTerm}+when:2d&hl=en-${country.toUpperCase()}&gl=${country.toUpperCase()}&ceid=${country.toUpperCase()}:en`;
+
+    console.log(`Fetching RSS from: ${rssUrl}`);
+
+    const response = await fetch(rssUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+      }
     });
 
-    const content = response.choices[0].message.content.trim();
-
-    try {
-      const articles = JSON.parse(content);
-      if (!Array.isArray(articles)) {
-        throw new Error('Expected list of articles');
-      }
-      return res.json({ success: true, articles: articles.slice(0, limit), count: articles.length });
-    } catch (e) {
-      return res.status(502).json({ success: false, error: `Invalid JSON from GPT: ${e.message}`, raw: content });
+    if (!response.ok) {
+      throw new Error(`Failed to fetch RSS: ${response.status} ${response.statusText}`);
     }
+
+    const text = await response.text();
+
+    const feed = await parser.parseString(text);
+
+    if (!feed.items || feed.items.length === 0) {
+      return res.status(404).json({ success: false, error: 'No articles found in RSS feed' });
+    }
+
+    const articles = feed.items.slice(0, limit).map(item => ({
+      title: item.title,
+      description: item.contentSnippet || item.content || 'Click to read full story.',
+      source: item.source || 'Google News',
+      published_at: item.pubDate ? new Date(item.pubDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+      url: item.link // REAL URL from RSS
+    }));
+
+    return res.json({ success: true, articles, count: articles.length });
+
   } catch (error) {
-    console.error('Error generating news:', error);
-    return res.status(500).json({ success: false, error: error.message });
+    console.error('Error fetching news RSS:', error);
+    return res.status(500).json({ success: false, error: 'Failed to fetch real news: ' + error.message });
   }
 });
 
-// Generate motivational quotes from books
+// Generate motivational quotes from books (Still AI, but valid search URL)
 app.get('/api/generate-quotes', async (req, res) => {
   try {
     if (!process.env.OPENAI_API_KEY) {
@@ -100,21 +110,19 @@ app.get('/api/generate-quotes', async (req, res) => {
 
     const bookTitle = bookNames[book] || 'Think and Grow Rich by Napoleon Hill';
 
-    const systemPrompt = `You are a wisdom curator and motivational speaker.
-Return ONLY valid JSON (no markdown, no commentary).
+    const systemPrompt = `You are a wisdom curator.
+Return ONLY valid JSON.
 JSON must be an array of objects with keys:
-- title (a short, catchy title for the quote/lesson)
-- description (2-3 sentences explaining the context and application)
-- source (the book name)
-- published_at (today's date in YYYY-MM-DD format)
-- url (use "#" as placeholder)
+- title (catchy title)
+- description (the quote/lesson)
+- source (book name)
+- published_at (today's date YYYY-MM-DD)
+- url (generate a Goodreads Search URL: https://www.goodreads.com/search?q=BOOK_TITLE)
 Constraints:
-- Extract powerful, actionable wisdom from "${bookTitle}"
-- Each entry should feel like a mini-lesson or insight
-- Make titles inspiring and tweet-worthy
+- Extract wisdom from "${bookTitle}"
 - Return exactly ${limit} items`;
 
-    const userPrompt = `Book: ${bookTitle}\nNumber of quotes/lessons: ${limit}`;
+    const userPrompt = `Book: ${bookTitle}\nNumber of quotes: ${limit}`;
 
     const response = await openai.chat.completions.create({
       model: process.env.OPENAI_NEWS_MODEL || 'gpt-4o-mini',
@@ -129,10 +137,15 @@ Constraints:
     const content = response.choices[0].message.content.trim();
 
     try {
-      const articles = JSON.parse(content);
-      if (!Array.isArray(articles)) {
-        throw new Error('Expected list of quotes');
+      // Strip markdown code blocks if present (GPT sometimes wraps JSON in ```json ... ```)
+      let cleanContent = content;
+      if (cleanContent.startsWith('```json')) {
+        cleanContent = cleanContent.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+      } else if (cleanContent.startsWith('```')) {
+        cleanContent = cleanContent.replace(/^```\s*/, '').replace(/\s*```$/, '');
       }
+
+      const articles = JSON.parse(cleanContent);
       return res.json({ success: true, articles: articles.slice(0, limit), count: articles.length });
     } catch (e) {
       return res.status(502).json({ success: false, error: `Invalid JSON from GPT: ${e.message}`, raw: content });
@@ -143,67 +156,81 @@ Constraints:
   }
 });
 
-// Generate AI-related content from sources
+// Generate AI-related content (NOW FETCHING REAL RSS)
 app.get('/api/generate-ai-content', async (req, res) => {
   try {
-    if (!process.env.OPENAI_API_KEY) {
-      return res.status(400).json({ success: false, error: 'OpenAI API key missing' });
-    }
+    const { limit = 5 } = req.query;
 
-    const { source = 'openai', limit = 5 } = req.query;
-    const today = new Date().toISOString().split('T')[0];
+    // Trending AI topics that rotate for variety
+    const trendingAITopics = [
+      'ChatGPT OR OpenAI OR GPT-4',
+      'Claude OR Anthropic',
+      'Google Gemini OR Google AI',
+      'LLM OR Large Language Model',
+      'Computer Vision OR Image Recognition',
+      'AI Robotics',
+      'Machine Learning breakthrough',
+      'DeepMind',
+      'AI Ethics OR AI Safety',
+      'Generative AI',
+      'AI Regulation OR AI Policy',
+      'AI in Healthcare',
+      'Autonomous Vehicles OR Self-Driving',
+      'AI Agents',
+      'Semiconductor AI chips'
+    ];
 
-    const sourceNames = {
-      'openai': 'OpenAI Blog',
-      'google-ai': 'Google AI Blog',
-      'huggingface': 'Hugging Face Blog',
-      'anthropic': 'Anthropic News',
-      'deepmind': 'DeepMind Blog',
-      'mit-tech': 'MIT Technology Review (AI Section)'
-    };
+    // Rotate through topics based on current minute (changes every minute)
+    const topicIndex = Math.floor(Date.now() / 60000) % trendingAITopics.length;
+    const selectedTopic = trendingAITopics[topicIndex];
 
-    const sourceName = sourceNames[source] || 'OpenAI Blog';
+    // Google News RSS for trending AI topic with recent filter
+    const rssUrl = `https://news.google.com/rss/search?q=${encodeURIComponent(selectedTopic)}+when:2d&hl=en-US&gl=US&ceid=US:en`;
 
-    const systemPrompt = `You are an AI industry analyst and tech journalist.
-Return ONLY valid JSON (no markdown, no commentary).
-JSON must be an array of objects with keys:
-- title (headline about AI development, research, or news)
-- description (2-3 sentences explaining the AI advancement or news)
-- source (${sourceName})
-- published_at (must be ${today} or within the last 2 days; use ISO-like YYYY-MM-DD)
-- url (use "#" as placeholder)
-Constraints:
-- Focus on cutting-edge AI developments, research breakthroughs, product launches, or industry trends
-- Make content feel current and relevant to ${sourceName}
-- Include topics like: LLMs, computer vision, robotics, ML research, AI ethics, AI products
-- Return exactly ${limit} items
-- Be realistic and timely`;
+    console.log(`Fetching AI RSS from: ${rssUrl} (Topic: ${selectedTopic})`);
 
-    const userPrompt = `Source: ${sourceName}\nNumber of articles: ${limit}`;
-
-    const response = await openai.chat.completions.create({
-      model: process.env.OPENAI_NEWS_MODEL || 'gpt-4o-mini',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
-      ],
-      temperature: 0.6,
-      max_tokens: 600,
+    const response = await fetch(rssUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+      }
     });
 
-    const content = response.choices[0].message.content.trim();
+    const text = await response.text();
+    const feed = await parser.parseString(text);
 
-    try {
-      const articles = JSON.parse(content);
-      if (!Array.isArray(articles)) {
-        throw new Error('Expected list of AI articles');
-      }
-      return res.json({ success: true, articles: articles.slice(0, limit), count: articles.length });
-    } catch (e) {
-      return res.status(502).json({ success: false, error: `Invalid JSON from GPT: ${e.message}`, raw: content });
+    if (!feed.items || feed.items.length === 0) {
+      // Fallback to generic AI news if specific topic has no results
+      const fallbackUrl = 'https://news.google.com/rss/search?q=Artificial+Intelligence+when:2d&hl=en-US&gl=US&ceid=US:en';
+      const fallbackResponse = await fetch(fallbackUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
+      });
+      const fallbackText = await fallbackResponse.text();
+      const fallbackFeed = await parser.parseString(fallbackText);
+
+      const articles = fallbackFeed.items.slice(0, limit).map(item => ({
+        title: item.title,
+        description: item.contentSnippet || 'Latest AI News',
+        source: 'AI News',
+        published_at: item.pubDate ? new Date(item.pubDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+        url: item.link
+      }));
+
+      return res.json({ success: true, articles, count: articles.length });
     }
+
+    const articles = feed.items.slice(0, limit).map(item => ({
+      title: item.title,
+      description: item.contentSnippet || 'Latest AI News',
+      source: item.source || 'Google News AI',
+      published_at: new Date(item.pubDate).toISOString().split('T')[0],
+      url: item.link // REAL URL
+    }));
+
+    return res.json({ success: true, articles, count: articles.length });
   } catch (error) {
-    console.error('Error generating AI content:', error);
+    console.error('Error fetching AI RSS:', error);
     return res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -262,12 +289,14 @@ Requirements:
 - Tone: ${tone}
 - Style: ${config.style}
 - Include hashtags: ${include_hashtags}
-- Include link: ${include_link}
+- Include link: ${include_link ? 'YES - YOU MUST include the article URL at the end of your post' : 'NO'}
 - Custom angle: ${custom_angle || 'Standard sharing'}
 - Context: ${contentContext}
+
+${include_link ? 'IMPORTANT: Always end your post with the article URL on a new line.' : ''}
 Return plain text only (no JSON).`;
 
-    const userPrompt = `Title: ${title}\nDescription: ${description}\nSource: ${source}\nURL: ${include_link ? url : ''}`;
+    const userPrompt = `Title: ${title}\nDescription: ${description}\nSource: ${source}${include_link ? `\nArticle URL (include this at the end): ${url}` : ''}`;
 
     const response = await openai.chat.completions.create({
       model: process.env.OPENAI_CONTENT_MODEL || 'gpt-4o',

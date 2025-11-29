@@ -1,9 +1,14 @@
+import { supabase } from './supabaseClient.js';
+
 // ==========================================
 // Headlines to Hashtags - Main Application
 // ==========================================
 
 // ========== State Management ==========
 const state = {
+  user: null, // Supabase user object
+  credits: 0, // User credits
+  freeUsageCount: 0, // Daily free usage count
   news: [],
   selectedArticle: null,
   contentType: 'news', // 'news' | 'quotes' | 'ai'
@@ -63,6 +68,34 @@ const elements = {
   closeSidebarBtn: document.getElementById('close-sidebar-btn'),
   sidebar: document.querySelector('.sidebar'),
   sidebarBackdrop: document.querySelector('.sidebar-backdrop'),
+
+  // Auth & User
+  loginBtn: document.getElementById('login-btn'),
+  userProfileHeader: document.getElementById('user-profile-header'),
+  headerCredits: document.getElementById('header-credits'),
+  userAvatar: document.getElementById('user-avatar'),
+  sidebarUserProfile: document.getElementById('sidebar-user-profile'),
+  sidebarAvatar: document.getElementById('sidebar-avatar'),
+  sidebarEmail: document.getElementById('sidebar-email'),
+  sidebarCredits: document.getElementById('sidebar-credits'),
+  buyCreditsBtn: document.getElementById('buy-credits-btn'),
+  logoutBtn: document.getElementById('logout-btn'),
+
+  // Auth Modal
+  authModal: document.getElementById('auth-modal'),
+  authModalClose: document.getElementById('auth-modal-close'),
+  authForm: document.getElementById('auth-form'),
+  authTitle: document.getElementById('auth-title'),
+  authSubtitle: document.getElementById('auth-subtitle'),
+  authBtnText: document.getElementById('auth-btn-text'),
+  authSwitchText: document.getElementById('auth-switch-text'),
+  switchToSignup: document.getElementById('switch-to-signup'),
+  emailInput: document.getElementById('email'),
+  passwordInput: document.getElementById('password'),
+
+  // Pricing Modal
+  pricingModal: document.getElementById('pricing-modal'),
+  pricingModalClose: document.getElementById('pricing-modal-close'),
 };
 
 // ========== API Communication ==========
@@ -89,8 +122,166 @@ function hideLoading() {
   elements.loadingOverlay.classList.remove('active');
 }
 
+// ========== Authentication & Limits ==========
+async function checkAuth() {
+  const { data: { session } } = await supabase.auth.getSession();
+
+  if (session) {
+    state.user = session.user;
+    // Mock fetching credits from DB (In real app, fetch from 'users' table)
+    // For now, we'll store credits in localStorage for demo purposes if DB isn't set up
+    const savedCredits = localStorage.getItem(`credits_${state.user.id}`);
+    state.credits = savedCredits ? parseInt(savedCredits) : 5; // Give 5 free credits on signup
+  } else {
+    state.user = null;
+    state.credits = 0;
+  }
+
+  updateAuthUI();
+}
+
+async function handleLogin(email, password) {
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+  });
+
+  if (error) throw error;
+
+  state.user = data.user;
+  await checkAuth();
+  return data.user;
+}
+
+async function handleSignup(email, password) {
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+  });
+
+  if (error) throw error;
+
+  // In a real app, you'd create a user record in your DB here
+  if (data.user) {
+    localStorage.setItem(`credits_${data.user.id}`, '5'); // Bonus credits
+  }
+
+  return data.user;
+}
+
+async function handleLogout() {
+  await supabase.auth.signOut();
+  state.user = null;
+  state.credits = 0;
+  updateAuthUI();
+  window.location.reload();
+}
+
+function updateAuthUI() {
+  if (state.user) {
+    // Logged In
+    elements.loginBtn.style.display = 'none';
+    elements.userProfileHeader.style.display = 'flex';
+    elements.headerCredits.textContent = `${state.credits} CR`;
+    elements.userAvatar.textContent = state.user.email[0].toUpperCase();
+
+    elements.sidebarUserProfile.classList.remove('hidden');
+    elements.sidebarEmail.textContent = state.user.email;
+    elements.sidebarCredits.textContent = state.credits;
+    elements.sidebarAvatar.textContent = state.user.email[0].toUpperCase();
+  } else {
+    // Logged Out
+    elements.loginBtn.style.display = 'block';
+    elements.userProfileHeader.style.display = 'none';
+    elements.sidebarUserProfile.classList.add('hidden');
+  }
+}
+
+// Usage Limits
+function getGuestUsage() {
+  const today = new Date().toISOString().split('T')[0];
+  const usage = JSON.parse(localStorage.getItem('guest_usage') || '{}');
+
+  if (usage.date !== today) {
+    return 0; // Reset if new day
+  }
+  return usage.count || 0;
+}
+
+function incrementGuestUsage() {
+  const today = new Date().toISOString().split('T')[0];
+  const current = getGuestUsage();
+  localStorage.setItem('guest_usage', JSON.stringify({ date: today, count: current + 1 }));
+}
+
+function checkUsageLimit() {
+  if (state.user) {
+    // Logged in user
+    // Free tier: 3 per day (mock logic)
+    // Paid: Check credits
+    if (state.credits > 0) return true;
+
+    // Check daily free limit for logged in users
+    const today = new Date().toISOString().split('T')[0];
+    const userUsage = JSON.parse(localStorage.getItem(`usage_${state.user.id}`) || '{}');
+
+    if (userUsage.date !== today) {
+      state.freeUsageCount = 0;
+    } else {
+      state.freeUsageCount = userUsage.count || 0;
+    }
+
+    if (state.freeUsageCount < 3) return true;
+
+    return false; // No credits and daily limit reached
+  } else {
+    // Guest user
+    const usage = getGuestUsage();
+    return usage < 1; // Limit to 1 generation
+  }
+}
+
+function deductCredit() {
+  if (state.user) {
+    if (state.credits > 0) {
+      state.credits--;
+      localStorage.setItem(`credits_${state.user.id}`, state.credits.toString());
+    } else {
+      // Increment free usage
+      const today = new Date().toISOString().split('T')[0];
+      state.freeUsageCount++;
+      localStorage.setItem(`usage_${state.user.id}`, JSON.stringify({ date: today, count: state.freeUsageCount }));
+    }
+    updateAuthUI();
+  } else {
+    incrementGuestUsage();
+  }
+}
+
+// Mock Payment
+window.buyCredits = function (amount) {
+  if (!state.user) {
+    showNotification('PLEASE LOGIN FIRST', 'error');
+    elements.pricingModal.classList.add('hidden');
+    elements.authModal.classList.remove('hidden');
+    return;
+  }
+
+  // Mock successful payment
+  const confirm = window.confirm(`Proceed to pay ₹${amount === 5 ? 49 : amount === 25 ? 199 : 499} for ${amount} credits?`);
+  if (confirm) {
+    state.credits += amount;
+    localStorage.setItem(`credits_${state.user.id}`, state.credits.toString());
+    updateAuthUI();
+    showNotification('CREDITS ADDED SUCCESSFULLY', 'success');
+    elements.pricingModal.classList.add('hidden');
+  }
+};
+
 // ========== System Initialization ==========
-function initializeSystem() {
+async function initializeSystem() {
+  await checkAuth();
+
   // Hide hero, show app
   elements.heroSection.classList.add('hidden');
   elements.appInterface.classList.remove('hidden');
@@ -154,75 +345,24 @@ function switchContentType(type) {
     document.getElementById('ai-config').classList.remove('hidden');
   }
 
+  // Update button text and icon based on content type
+  const fetchBtn = elements.fetchNewsBtn;
+  if (fetchBtn) {
+    if (type === 'news') {
+      fetchBtn.innerHTML = '<i class="ri-refresh-line"></i> SCAN FOR NEWS';
+    } else if (type === 'quotes') {
+      fetchBtn.innerHTML = '<i class="ri-book-2-line"></i> FETCH QUOTES';
+    } else if (type === 'ai') {
+      fetchBtn.innerHTML = '<i class="ri-robot-line"></i> FETCH AI NEWS';
+    }
+  }
+
   playSound('click');
 }
 
-// ========== Content Fetching (News/Quotes/AI) ==========
-async function fetchNews() {
-  let loadingMessage, endpoint, params;
 
-  // Branch based on content type
-  switch (state.contentType) {
-    case 'news':
-      loadingMessage = 'SCANNING GLOBAL FEEDS...';
-      endpoint = '/generate-news';
-      params = new URLSearchParams({
-        country: state.config.country,
-        category: state.config.category,
-        limit: '5',
-      });
-      break;
 
-    case 'quotes':
-      loadingMessage = 'EXTRACTING WISDOM...';
-      endpoint = '/generate-quotes';
-      params = new URLSearchParams({
-        book: state.config.bookSource,
-        limit: '5',
-      });
-      break;
-
-    case 'ai':
-      loadingMessage = 'SCANNING AI FEEDS...';
-      endpoint = '/generate-ai-content';
-      params = new URLSearchParams({
-        source: state.config.aiSource,
-        limit: '5',
-      });
-      break;
-  }
-
-  showLoading(loadingMessage);
-  const data = await apiCall(`${endpoint}?${params}`);
-  hideLoading();
-
-  if (data.success) {
-    state.news = data.articles;
-    state.seriesSelection.clear(); // Clear series selection when fetching new content
-    renderNews();
-    updateButtonStates();
-
-    // Reset series and analytics containers
-    elements.seriesContainer.innerHTML = `
-      <div class="empty-state">
-        <i class="ri-database-2-line empty-icon"></i>
-        <p>SELECT AT LEAST 2 ARTICLES TO GENERATE SERIES.</p>
-        <button onclick="switchTab('fetch-news')" class="btn btn-primary" style="margin-top: 1rem;"><i class="ri-radar-line"></i> GO TO NEWS FEED</button>
-      </div>
-    `;
-    elements.analyticsContainer.innerHTML = `
-      <div class="empty-state">
-        <i class="ri-line-chart-line empty-icon"></i>
-        <p>NO DATA TO ANALYZE. SCAN FOR NEWS FIRST.</p>
-        <button onclick="switchTab('fetch-news')" class="btn btn-primary" style="margin-top: 1rem;"><i class="ri-radar-line"></i> GO TO NEWS FEED</button>
-      </div>
-    `;
-
-    showNotification(`ACQUIRED ${data.count} TARGETS`, 'success');
-  } else {
-    showNotification(`ERROR: ${data.error}`, 'error');
-  }
-}
+// ========== Article Selection ==========
 
 function renderNews() {
   if (!state.news || state.news.length === 0) {
@@ -390,6 +530,9 @@ async function generateSocialContent() {
         generateImage(state.selectedArticle);
       });
     }
+
+    // Deduct credit for content generation
+    deductCredit();
 
     playSound('success');
   } else {
@@ -599,6 +742,87 @@ async function analyzeNews() {
   }
 }
 
+// ========== News Fetching ==========
+async function fetchNews() {
+  // Check Usage Limit
+  if (!checkUsageLimit()) {
+    if (!state.user) {
+      showNotification('GUEST LIMIT REACHED. PLEASE LOGIN.', 'error');
+      elements.authModal.classList.remove('hidden');
+    } else {
+      showNotification('DAILY LIMIT REACHED. UPGRADE FOR MORE.', 'error');
+      elements.pricingModal.classList.remove('hidden');
+    }
+    return;
+  }
+
+  const category = state.config.category;
+  const country = state.config.country;
+  const platform = state.config.platform;
+  const bookSource = state.config.bookSource;
+  const aiSource = state.config.aiSource;
+
+  // Dynamic loading message based on content type
+  let loadingMessage = 'SCANNING GLOBAL SOURCES...';
+  if (state.contentType === 'quotes') {
+    loadingMessage = 'EXTRACTING WISDOM FROM BOOKS...';
+  } else if (state.contentType === 'ai') {
+    loadingMessage = 'FETCHING AI DEVELOPMENTS...';
+  }
+
+  showLoading(loadingMessage);
+
+  // Clear previous data
+  state.news = [];
+  state.selectedArticle = null;
+  state.seriesSelection.clear();
+  updateButtonStates();
+
+  // Determine endpoint and params based on content type
+  let endpoint = '/generate-news';
+  let params = new URLSearchParams();
+
+  // Add common params
+  params.append('limit', '5');
+  params.append('platform', platform);
+
+  if (state.contentType === 'news') {
+    endpoint = '/generate-news';
+    params.append('category', category);
+    params.append('country', country);
+  } else if (state.contentType === 'quotes') {
+    endpoint = '/generate-quotes';
+    params.append('book', bookSource);
+  } else if (state.contentType === 'ai') {
+    endpoint = '/generate-ai-content';
+    params.append('source', aiSource);
+  }
+
+  const data = await apiCall(`${endpoint}?${params.toString()}`);
+
+  hideLoading();
+
+  if (data.success) {
+    state.news = data.articles;
+    renderNews(state.news);
+    switchTab('fetch-news');
+    playSound('success');
+
+    // Deduct credit only after successful fetch? 
+    // Actually, the user requirement says "limit the fetching to 1 post generation".
+    // "Generation" usually means the final output. 
+    // But "fetching" is the first step.
+    // Let's interpret "limit fetching" as limiting the ability to START the process.
+    // However, if they just fetch and don't generate, it might be fine.
+    // But the prompt says "Limit the fetching to 1 post generation".
+    // I'll deduct credit when they actually GENERATE the social content, not just fetch news.
+    // So I will NOT deduct here, but I WILL check if they have enough credits to proceed.
+    // This check at the start is correct.
+  } else {
+    elements.newsContainer.innerHTML = `<p class="error-msg">ERROR: ${data.error}</p>`;
+    playSound('error');
+  }
+}
 // ========== Image Generation & Social Card ==========
 async function generateImage(article) {
   const container = document.getElementById('generated-image-container');
@@ -635,24 +859,23 @@ async function generateImage(article) {
           </button>
           <a href="${data.imageUrl}" download="generated-image.png" target="_blank" class="btn btn-secondary" style="flex: 1; text-align: center; text-decoration: none; display: flex; align-items: center; justify-content: center;">
             <i class="ri-download-line"></i> DOWNLOAD IMAGE
-          </a>
+      <div style="position: relative; animation: slideIn 0.3s ease-out;">
+        <img src="${data.imageUrl}" alt="Generated AI Image" style="width: 100%; border-radius: 8px; border: 1px solid var(--neon-cyan); box-shadow: 0 0 20px rgba(0, 243, 255, 0.2);">
+        <div style="margin-top: 1rem; display: flex; gap: 0.5rem;">
+          <a href="${data.imageUrl}" download="generated-image.png" class="btn btn-secondary" style="flex: 1; text-align: center; text-decoration: none;"><i class="ri-download-line"></i> DOWNLOAD IMAGE</a>
+          <button id="create-card-btn" class="btn btn-primary btn-glow" style="flex: 1;"><i class="ri-artboard-line"></i> CREATE SOCIAL CARD</button>
         </div>
-        
-        <div id="card-preview-container" style="margin-top: 1rem; display: none;">
-          <label style="font-weight: 600; color: var(--neon-cyan); display: block; margin-bottom: 0.5rem;">
-            <i class="ri-image-edit-line"></i> CARD PREVIEW
-          </label>
-          <canvas id="social-card-canvas" style="width: 100%; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);"></canvas>
-          <button id="download-card-btn" class="btn btn-primary" style="width: 100%; margin-top: 0.5rem;">
-            <i class="ri-download-cloud-line"></i> DOWNLOAD CARD
-          </button>
-        </div>
+        <div id="card-preview-container" style="margin-top: 1.5rem;"></div>
       </div>
     `;
 
-    // Add event listener for card creation
+    state.generatedImageUrl = data.imageUrl; // Use data.imageUrl here
+
+    // Deduct credit for image generation
+    deductCredit();
+
     document.getElementById('create-card-btn').addEventListener('click', () => {
-      createSocialCard(data.imageUrl, state.generatedContent);
+      createSocialCard(data.imageUrl, state.generatedContent); // Use data.imageUrl here
     });
 
     playSound('success');
@@ -864,6 +1087,87 @@ function initEventListeners() {
   elements.guideBtn.addEventListener('click', showOnboarding);
   elements.closeGuideBtn.addEventListener('click', hideOnboarding);
   if (elements.closeModalIcon) elements.closeModalIcon.addEventListener('click', hideOnboarding);
+
+  // Auth & Modals
+  if (elements.loginBtn) {
+    elements.loginBtn.addEventListener('click', () => {
+      elements.authModal.classList.remove('hidden');
+    });
+  }
+
+  if (elements.authModalClose) {
+    elements.authModalClose.addEventListener('click', () => {
+      elements.authModal.classList.add('hidden');
+    });
+  }
+
+  if (elements.authForm) {
+    elements.authForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = elements.emailInput.value;
+      const password = elements.passwordInput.value;
+      const isLogin = elements.authTitle.textContent === 'LOGIN';
+
+      try {
+        if (isLogin) {
+          await handleLogin(email, password);
+          showNotification('LOGIN SUCCESSFUL', 'success');
+        } else {
+          await handleSignup(email, password);
+          showNotification('SIGNUP SUCCESSFUL! PLEASE CHECK EMAIL', 'success');
+        }
+        elements.authModal.classList.add('hidden');
+      } catch (error) {
+        showNotification(error.message, 'error');
+      }
+    });
+  }
+
+  if (elements.switchToSignup) {
+    elements.switchToSignup.addEventListener('click', (e) => {
+      e.preventDefault();
+      const isLogin = elements.authTitle.textContent === 'LOGIN';
+      if (isLogin) {
+        elements.authTitle.textContent = 'SIGN UP';
+        elements.authSubtitle.textContent = 'Create an account to get started.';
+        elements.authBtnText.textContent = 'SIGN UP';
+        elements.authSwitchText.innerHTML = 'Already have an account? <a href="#" id="switch-to-login">Login</a>';
+
+        // Re-attach listener for new link
+        document.getElementById('switch-to-login').addEventListener('click', (e) => {
+          e.preventDefault();
+          elements.switchToSignup.click(); // Toggle back
+        });
+      } else {
+        elements.authTitle.textContent = 'LOGIN';
+        elements.authSubtitle.textContent = 'Access your account to generate more content.';
+        elements.authBtnText.textContent = 'LOGIN';
+        elements.authSwitchText.innerHTML = 'Don\'t have an account? <a href="#" id="switch-to-signup">Sign Up</a>';
+
+        // Re-attach listener
+        document.getElementById('switch-to-signup').addEventListener('click', (e) => {
+          e.preventDefault();
+          elements.switchToSignup.click(); // Toggle back
+        });
+      }
+    });
+  }
+
+  if (elements.logoutBtn) {
+    elements.logoutBtn.addEventListener('click', handleLogout);
+  }
+
+  if (elements.buyCreditsBtn) {
+    elements.buyCreditsBtn.addEventListener('click', () => {
+      elements.pricingModal.classList.remove('hidden');
+    });
+  }
+
+  if (elements.pricingModalClose) {
+    elements.pricingModalClose.addEventListener('click', () => {
+      elements.pricingModal.classList.add('hidden');
+    });
+  }
 
   // Configuration changes
   elements.categorySelect.addEventListener('change', (e) => {
