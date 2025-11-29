@@ -6,13 +6,19 @@
 const state = {
   news: [],
   selectedArticle: null,
+  contentType: 'news', // 'news' | 'quotes' | 'ai'
   config: {
     category: 'general',
     country: 'us',
     platform: 'twitter',
     tone: 'informative',
+    bookSource: 'think-grow-rich',
+    aiSource: 'openai',
   },
-  systemReady: false
+  systemReady: false,
+  seriesSelection: new Set(), // Track selected article indices
+  generatedContent: '', // Store generated social media text
+  generatedImageUrl: null // Store generated image URL
 };
 
 // ========== DOM Elements ==========
@@ -40,7 +46,6 @@ const elements = {
 
   // Buttons
   fetchNewsBtn: document.getElementById('fetch-news-btn'),
-  generateSeriesBtn: document.getElementById('generate-series-btn'),
   analyzeNewsBtn: document.getElementById('analyze-news-btn'),
 
   // Containers
@@ -52,6 +57,12 @@ const elements = {
   // Loading
   loadingOverlay: document.getElementById('loading-overlay'),
   loadingText: document.querySelector('.loading-text'),
+
+  // Mobile Sidebar
+  mobileMenuBtn: document.getElementById('mobile-menu-btn'),
+  closeSidebarBtn: document.getElementById('close-sidebar-btn'),
+  sidebar: document.querySelector('.sidebar'),
+  sidebarBackdrop: document.querySelector('.sidebar-backdrop'),
 };
 
 // ========== API Communication ==========
@@ -103,7 +114,7 @@ function hideOnboarding() {
 }
 
 // ========== Tab Navigation ==========
-function switchTab(tabName) {
+window.switchTab = function (tabName) {
   // Update tab buttons
   elements.tabButtons.forEach((btn) => {
     if (btn.dataset.tab === tabName) {
@@ -125,23 +136,88 @@ function switchTab(tabName) {
   playSound('click');
 }
 
-// ========== News Fetching ==========
+// ========== Content Type Switching ==========
+function switchContentType(type) {
+  state.contentType = type;
+
+  // Hide all config sections
+  document.getElementById('news-config').classList.add('hidden');
+  document.getElementById('quotes-config').classList.add('hidden');
+  document.getElementById('ai-config').classList.add('hidden');
+
+  // Show selected config section
+  if (type === 'news') {
+    document.getElementById('news-config').classList.remove('hidden');
+  } else if (type === 'quotes') {
+    document.getElementById('quotes-config').classList.remove('hidden');
+  } else if (type === 'ai') {
+    document.getElementById('ai-config').classList.remove('hidden');
+  }
+
+  playSound('click');
+}
+
+// ========== Content Fetching (News/Quotes/AI) ==========
 async function fetchNews() {
-  showLoading('SCANNING GLOBAL FEEDS...');
+  let loadingMessage, endpoint, params;
 
-  const params = new URLSearchParams({
-    country: state.config.country,
-    category: state.config.category,
-    limit: '5',
-  });
+  // Branch based on content type
+  switch (state.contentType) {
+    case 'news':
+      loadingMessage = 'SCANNING GLOBAL FEEDS...';
+      endpoint = '/generate-news';
+      params = new URLSearchParams({
+        country: state.config.country,
+        category: state.config.category,
+        limit: '5',
+      });
+      break;
 
-  const data = await apiCall(`/generate-news?${params}`);
+    case 'quotes':
+      loadingMessage = 'EXTRACTING WISDOM...';
+      endpoint = '/generate-quotes';
+      params = new URLSearchParams({
+        book: state.config.bookSource,
+        limit: '5',
+      });
+      break;
+
+    case 'ai':
+      loadingMessage = 'SCANNING AI FEEDS...';
+      endpoint = '/generate-ai-content';
+      params = new URLSearchParams({
+        source: state.config.aiSource,
+        limit: '5',
+      });
+      break;
+  }
+
+  showLoading(loadingMessage);
+  const data = await apiCall(`${endpoint}?${params}`);
   hideLoading();
 
   if (data.success) {
     state.news = data.articles;
+    state.seriesSelection.clear(); // Clear series selection when fetching new content
     renderNews();
     updateButtonStates();
+
+    // Reset series and analytics containers
+    elements.seriesContainer.innerHTML = `
+      <div class="empty-state">
+        <i class="ri-database-2-line empty-icon"></i>
+        <p>SELECT AT LEAST 2 ARTICLES TO GENERATE SERIES.</p>
+        <button onclick="switchTab('fetch-news')" class="btn btn-primary" style="margin-top: 1rem;"><i class="ri-radar-line"></i> GO TO NEWS FEED</button>
+      </div>
+    `;
+    elements.analyticsContainer.innerHTML = `
+      <div class="empty-state">
+        <i class="ri-line-chart-line empty-icon"></i>
+        <p>NO DATA TO ANALYZE. SCAN FOR NEWS FIRST.</p>
+        <button onclick="switchTab('fetch-news')" class="btn btn-primary" style="margin-top: 1rem;"><i class="ri-radar-line"></i> GO TO NEWS FEED</button>
+      </div>
+    `;
+
     showNotification(`ACQUIRED ${data.count} TARGETS`, 'success');
   } else {
     showNotification(`ERROR: ${data.error}`, 'error');
@@ -161,20 +237,28 @@ function renderNews() {
 
   elements.newsContainer.innerHTML = state.news
     .map(
-      (article, index) => `
-      <div class="news-card">
+      (article, index) => {
+        const isSelected = state.seriesSelection.has(index);
+        const seriesBtnClass = isSelected ? 'btn-primary' : 'btn-secondary';
+        const seriesBtnIcon = isSelected ? 'ri-checkbox-circle-line' : 'ri-add-circle-line';
+        const seriesBtnText = isSelected ? 'ADDED' : 'ADD TO SERIES';
+
+        return `
+      <div class="news-card ${isSelected ? 'selected-for-series' : ''}">
         <h3>${article.title || '(No title)'}</h3>
         <div class="news-meta">
           <span><i class="ri-newspaper-line"></i> ${article.source || 'Unknown'}</span>
           <span><i class="ri-calendar-line"></i> ${article.published_at || ''}</span>
         </div>
         <p class="news-description">${article.description || ''}</p>
-        <div class="news-actions" style="margin-top: 1rem; display: flex; gap: 0.5rem;">
+        <div class="news-actions" style="margin-top: 1rem; display: flex; gap: 0.5rem; flex-wrap: wrap;">
           <button class="btn btn-primary" onclick="selectArticle(${index})"><i class="ri-edit-circle-line"></i> SELECT TARGET</button>
+          <button class="btn ${seriesBtnClass}" onclick="toggleSeriesSelection(${index})"><i class="${seriesBtnIcon}"></i> ${seriesBtnText}</button>
           ${article.url ? `<a href="${article.url}" target="_blank" class="btn btn-secondary"><i class="ri-external-link-line"></i> SOURCE</a>` : ''}
         </div>
       </div>
-    `
+    `;
+      }
     )
     .join('');
 }
@@ -185,6 +269,17 @@ window.selectArticle = function (index) {
   renderSelectedArticle();
   switchTab('create-content');
   showNotification('TARGET LOCKED. READY TO GENERATE.', 'success');
+};
+
+window.toggleSeriesSelection = function (index) {
+  if (state.seriesSelection.has(index)) {
+    state.seriesSelection.delete(index);
+  } else {
+    state.seriesSelection.add(index);
+  }
+  renderNews(); // Re-render to update button states
+  updateButtonStates();
+  playSound('click');
 };
 
 function renderSelectedArticle() {
@@ -201,7 +296,10 @@ function renderSelectedArticle() {
   const article = state.selectedArticle;
   elements.selectedArticleContainer.innerHTML = `
     <div class="content-card">
-      <h4>${article.title || '(No title)'}</h4>
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1rem;">
+        <h4 style="margin-bottom: 0;">${article.title || '(No title)'}</h4>
+        <button onclick="switchTab('fetch-news')" class="btn btn-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;"><i class="ri-arrow-left-line"></i> BACK</button>
+      </div>
       <p><strong>Source:</strong> ${article.source || 'Unknown'}</p>
       <p style="opacity: 0.9;">${article.description || ''}</p>
     </div>
@@ -247,24 +345,129 @@ async function generateSocialContent() {
   const contentDiv = document.getElementById('generated-content');
   if (data.success) {
     const platform = state.config.platform;
-    const shareBtn = getShareButton(platform, data.content, state.selectedArticle?.url);
 
     contentDiv.innerHTML = `
       <div style="margin-top: 1.5rem; animation: slideUp 0.3s ease-out;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+        <div style="display: flex; justify-content: space-between; align-items:flex-start; margin-bottom: 0.5rem;">
           <label style="font-weight: 600; color: var(--neon-cyan);"><i class="ri-check-double-line"></i> OUTPUT GENERATED</label>
           <div style="display: flex; gap: 0.5rem;">
-            ${shareBtn}
-            <button class="btn btn-secondary" onclick="copyToClipboard('${escapeHtml(data.content)}')"><i class="ri-file-copy-line"></i> COPY</button>
+            <button id="share-btn-generated" class="btn btn-primary btn-glow"><i class="ri-twitter-x-line"></i> ${getShareButtonLabel(platform)}</button>
+            <button id="copy-btn-generated" class="btn btn-secondary"><i class="ri-file-copy-line"></i> COPY</button>
           </div>
         </div>
         <textarea class="text-output" readonly>${data.content}</textarea>
+        
+        <!-- Image Generation Section -->
+        <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid rgba(255, 255, 255, 0.1);">
+          <button id="generate-image-btn" class="btn btn-primary" style="width: 100%;"><i class="ri-image-add-line"></i> GENERATE AI IMAGE</button>
+          <div id="generated-image-container" style="margin-top: 1rem;"></div>
+        </div>
       </div>
     `;
+
+    // Store generated content for later use
+    state.generatedContent = data.content;
+
+    // Add event listeners to the buttons
+    const copyBtn = document.getElementById('copy-btn-generated');
+    const shareBtn = document.getElementById('share-btn-generated');
+    const generateImageBtn = document.getElementById('generate-image-btn');
+
+    if (copyBtn) {
+      copyBtn.addEventListener('click', () => {
+        copyToClipboard(data.content);
+      });
+    }
+
+    if (shareBtn) {
+      shareBtn.addEventListener('click', () => {
+        handleShare(platform, data.content, state.selectedArticle?.url, state.generatedImageUrl);
+      });
+    }
+
+    if (generateImageBtn) {
+      generateImageBtn.addEventListener('click', () => {
+        generateImage(state.selectedArticle);
+      });
+    }
+
     playSound('success');
   } else {
     contentDiv.innerHTML = `<p style="color: var(--error); margin-top: 1rem;">ERROR: ${data.error}</p>`;
     playSound('error');
+  }
+}
+
+function getShareButtonLabel(platform) {
+  switch (platform) {
+    case 'twitter': return 'POST TO X';
+    case 'linkedin': return 'POST TO LINKEDIN';
+    case 'instagram': return 'POST TO INSTAGRAM';
+    case 'facebook': return 'POST TO FACEBOOK';
+    default: return 'SHARE';
+  }
+}
+
+async function handleShare(platform, text, url, imageUrl) {
+  // Try Web Share API first (Mobile/Modern Browsers)
+  if (navigator.share && imageUrl) {
+    try {
+      // Fetch image blob
+      const response = await fetch(`/api/proxy-image?url=${encodeURIComponent(imageUrl)}`);
+      const blob = await response.blob();
+      const file = new File([blob], 'social-post.png', { type: 'image/png' });
+
+      await navigator.share({
+        title: 'Shared via Headlines to Hashtags',
+        text: text,
+        files: [file],
+        url: url
+      });
+      showNotification('SHARED SUCCESSFULLY', 'success');
+      return;
+    } catch (err) {
+      console.log('Web Share API failed, falling back to clipboard/download:', err);
+    }
+  }
+
+  // Fallback: Copy text + Download image (if exists)
+  copyToClipboard(text);
+
+  if (imageUrl) {
+    const link = document.createElement('a');
+    link.href = `/api/proxy-image?url=${encodeURIComponent(imageUrl)}`;
+    link.download = 'social-post.png';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showNotification('TEXT COPIED & IMAGE DOWNLOADED', 'success');
+  } else {
+    showNotification('CONTENT COPIED TO CLIPBOARD', 'success');
+  }
+
+  // Open platform specific share URL (Text only)
+  let shareUrl = '';
+  const encodedText = encodeURIComponent(text);
+  const encodedUrl = encodeURIComponent(url || '');
+
+  switch (platform) {
+    case 'twitter':
+      shareUrl = `https://twitter.com/intent/tweet?text=${encodedText}&url=${encodedUrl}`;
+      break;
+    case 'linkedin':
+      shareUrl = `https://www.linkedin.com/sharing/share-offsite/?url=${encodedUrl}`;
+      break;
+    case 'facebook':
+      shareUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}&quote=${encodedText}`;
+      break;
+    case 'instagram':
+      // Instagram doesn't have a web share intent, so we rely on the copy/download fallback
+      if (!imageUrl) showNotification('OPEN INSTAGRAM TO PASTE', 'info');
+      return;
+  }
+
+  if (shareUrl) {
+    window.open(shareUrl, '_blank');
   }
 }
 
@@ -322,16 +525,22 @@ function getShareButton(platform, text, url) {
 }
 
 // ========== Content Series Generation ==========
-async function generateSeries() {
-  if (!state.news || state.news.length < 2) return;
+window.generateSeries = async function () {
+  // Use selected articles if available, otherwise don't proceed
+  if (state.seriesSelection.size < 2) {
+    showNotification('SELECT AT LEAST 2 ARTICLES FOR SERIES', 'error');
+    return;
+  }
 
   showLoading('BUILDING THREAD SEQUENCE...');
+
+  const selectedArticles = Array.from(state.seriesSelection).map(i => state.news[i]);
 
   const data = await apiCall('/create-content-series', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      articles: state.news.slice(0, 3),
+      articles: selectedArticles,
       platform: state.config.platform,
       theme: 'Daily Update',
       tone: state.config.tone,
@@ -390,19 +599,180 @@ async function analyzeNews() {
   }
 }
 
+// ========== Image Generation & Social Card ==========
+async function generateImage(article) {
+  const container = document.getElementById('generated-image-container');
+  const btn = document.getElementById('generate-image-btn');
+
+  if (btn) btn.disabled = true;
+  container.innerHTML = `
+    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 2rem; background: rgba(0,0,0,0.2); border-radius: 8px;">
+      <div class="loader"></div>
+      <p style="margin-top: 1rem; color: var(--text-secondary); font-size: 0.9rem;">GENERATING VISUALS via DALL-E 3...</p>
+    </div>
+  `;
+
+  const data = await apiCall('/generate-image', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ article }),
+  });
+
+  if (btn) btn.disabled = false;
+
+  if (data.success) {
+    state.generatedImageUrl = data.imageUrl;
+
+    container.innerHTML = `
+      <div style="animation: fadeIn 0.5s ease-out;">
+        <div style="position: relative; border-radius: 8px; overflow: hidden; border: 1px solid var(--neon-cyan); box-shadow: 0 0 20px rgba(0, 243, 255, 0.2);">
+          <img src="${data.imageUrl}" alt="Generated Image" style="width: 100%; display: block;">
+        </div>
+        
+        <div style="margin-top: 1rem; display: flex; gap: 0.5rem; flex-wrap: wrap;">
+          <button id="create-card-btn" class="btn btn-primary btn-glow" style="flex: 1;">
+            <i class="ri-layout-masonry-line"></i> CREATE SOCIAL CARD
+          </button>
+          <a href="${data.imageUrl}" download="generated-image.png" target="_blank" class="btn btn-secondary" style="flex: 1; text-align: center; text-decoration: none; display: flex; align-items: center; justify-content: center;">
+            <i class="ri-download-line"></i> DOWNLOAD IMAGE
+          </a>
+        </div>
+        
+        <div id="card-preview-container" style="margin-top: 1rem; display: none;">
+          <label style="font-weight: 600; color: var(--neon-cyan); display: block; margin-bottom: 0.5rem;">
+            <i class="ri-image-edit-line"></i> CARD PREVIEW
+          </label>
+          <canvas id="social-card-canvas" style="width: 100%; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);"></canvas>
+          <button id="download-card-btn" class="btn btn-primary" style="width: 100%; margin-top: 0.5rem;">
+            <i class="ri-download-cloud-line"></i> DOWNLOAD CARD
+          </button>
+        </div>
+      </div>
+    `;
+
+    // Add event listener for card creation
+    document.getElementById('create-card-btn').addEventListener('click', () => {
+      createSocialCard(data.imageUrl, state.generatedContent);
+    });
+
+    playSound('success');
+  } else {
+    container.innerHTML = `<p style="color: var(--error); padding: 1rem; text-align: center;">ERROR: ${data.error}</p>`;
+    playSound('error');
+  }
+}
+
+async function createSocialCard(imageUrl, text) {
+  const container = document.getElementById('card-preview-container');
+  const canvas = document.getElementById('social-card-canvas');
+  const ctx = canvas.getContext('2d');
+  const downloadBtn = document.getElementById('download-card-btn');
+
+  container.style.display = 'block';
+
+  // Set canvas dimensions (Instagram Square 1080x1080)
+  canvas.width = 1080;
+  canvas.height = 1080;
+
+  // Load image via proxy to avoid CORS issues
+  const img = new Image();
+  img.crossOrigin = "Anonymous";
+  // Use proxy endpoint
+  img.src = `/api/proxy-image?url=${encodeURIComponent(imageUrl)}`;
+
+  img.onload = () => {
+    // Draw image
+    ctx.drawImage(img, 0, 0, 1080, 1080);
+
+    // Add dark gradient overlay for text readability
+    const gradient = ctx.createLinearGradient(0, 500, 0, 1080);
+    gradient.addColorStop(0, "rgba(0,0,0,0)");
+    gradient.addColorStop(0.4, "rgba(0,0,0,0.7)");
+    gradient.addColorStop(1, "rgba(0,0,0,0.9)");
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, 1080, 1080);
+
+    // Add border
+    ctx.strokeStyle = "#00f3ff";
+    ctx.lineWidth = 20;
+    ctx.strokeRect(0, 0, 1080, 1080);
+
+    // Add text
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "bold 48px 'Courier New', monospace";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+
+    // Wrap text
+    const words = text.split(' ');
+    let line = '';
+    const lines = [];
+    const maxWidth = 900;
+    const lineHeight = 60;
+
+    for (let n = 0; n < words.length; n++) {
+      const testLine = line + words[n] + ' ';
+      const metrics = ctx.measureText(testLine);
+      const testWidth = metrics.width;
+      if (testWidth > maxWidth && n > 0) {
+        lines.push(line);
+        line = words[n] + ' ';
+      } else {
+        line = testLine;
+      }
+    }
+    lines.push(line);
+
+    // Draw text lines
+    const startY = 1080 - (lines.length * lineHeight) - 100;
+    for (let i = 0; i < lines.length; i++) {
+      ctx.fillText(lines[i], 540, startY + (i * lineHeight));
+    }
+
+    // Add branding
+    ctx.font = "30px 'Courier New', monospace";
+    ctx.fillStyle = "#00f3ff";
+    ctx.fillText("HEADLINES TO HASHTAGS", 540, 1030);
+
+    // Setup download button
+    downloadBtn.onclick = () => {
+      const link = document.createElement('a');
+      link.download = 'social-card.png';
+      link.href = canvas.toDataURL();
+      link.click();
+      playSound('success');
+    };
+
+    // Scroll to preview
+    container.scrollIntoView({ behavior: 'smooth' });
+  };
+}
+
 // ========== Utility Functions ==========
 function updateButtonStates() {
-  const hasEnoughNews = state.news && state.news.length >= 2;
+  const hasEnoughSelected = state.seriesSelection.size >= 2;
   const hasNews = state.news && state.news.length > 0;
 
-  elements.generateSeriesBtn.disabled = !hasEnoughNews;
   elements.analyzeNewsBtn.disabled = !hasNews;
 
-  if (!hasEnoughNews) {
+  if (!hasEnoughSelected) {
     elements.seriesContainer.innerHTML = `
       <div class="empty-state">
         <i class="ri-database-2-line empty-icon"></i>
-        <p>INSUFFICIENT DATA. FETCH 2+ ARTICLES.</p>
+        <p>SELECT AT LEAST 2 ARTICLES TO GENERATE SERIES.</p>
+        <button onclick="switchTab('fetch-news')" class="btn btn-primary" style="margin-top: 1rem;"><i class="ri-radar-line"></i> GO TO NEWS FEED</button>
+      </div>
+    `;
+  } else {
+    // Show the generate button when enough articles are selected
+    elements.seriesContainer.innerHTML = `
+      <div class="empty-state">
+        <i class="ri-checkbox-circle-line" style="color: var(--neon-cyan); font-size: 3rem; margin-bottom: 1rem;"></i>
+        <p style="color: var(--neon-cyan); font-weight: 600;">${state.seriesSelection.size} ARTICLES SELECTED FOR SERIES</p>
+        <div style="display: flex; gap: 0.5rem; justify-content: center; margin-top: 1rem; flex-wrap: wrap;">
+          <button onclick="switchTab('fetch-news')" class="btn btn-secondary"><i class="ri-arrow-left-line"></i> BACK TO NEWS</button>
+          <button onclick="generateSeries()" class="btn btn-primary btn-glow"><i class="ri-film-line"></i> GENERATE SERIES</button>
+        </div>
       </div>
     `;
   }
@@ -411,7 +781,8 @@ function updateButtonStates() {
     elements.analyticsContainer.innerHTML = `
       <div class="empty-state">
         <i class="ri-line-chart-line empty-icon"></i>
-        <p>NO DATA TO ANALYZE.</p>
+        <p>NO DATA TO ANALYZE. SCAN FOR NEWS FIRST.</p>
+        <button onclick="switchTab('fetch-news')" class="btn btn-primary" style="margin-top: 1rem;"><i class="ri-radar-line"></i> GO TO NEWS FEED</button>
       </div>
     `;
   }
@@ -454,9 +825,13 @@ function showNotification(message, type = 'info') {
 }
 
 window.copyToClipboard = function (text) {
-  const tempDiv = document.createElement('div');
-  tempDiv.innerHTML = text;
-  const cleanText = tempDiv.textContent || tempDiv.innerText;
+  // If text is already a string, use it directly. Otherwise decode HTML entities
+  let cleanText = text;
+  if (typeof text === 'string' && text.includes('&')) {
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = text;
+    cleanText = tempDiv.textContent || tempDiv.innerText;
+  }
 
   navigator.clipboard.writeText(cleanText).then(() => {
     showNotification('COPIED TO CLIPBOARD', 'success');
@@ -496,12 +871,21 @@ function initEventListeners() {
     playSound('click');
   });
 
+  // Content Type Switching
+  document.querySelectorAll('input[name="content-type"]').forEach(radio => {
+    radio.addEventListener('change', (e) => {
+      switchContentType(e.target.value);
+    });
+  });
+
   // Custom Dropdowns Initialization
   const dropdowns = [
     { id: 'platform-custom-select', inputId: 'platform-select', stateKey: 'platform' },
     { id: 'category-custom-select', inputId: 'category-select', stateKey: 'category' },
     { id: 'country-custom-select', inputId: 'country-select', stateKey: 'country' },
-    { id: 'tone-custom-select', inputId: 'tone-select', stateKey: 'tone' }
+    { id: 'tone-custom-select', inputId: 'tone-select', stateKey: 'tone' },
+    { id: 'book-custom-select', inputId: 'book-select', stateKey: 'bookSource' },
+    { id: 'ai-source-custom-select', inputId: 'ai-source-select', stateKey: 'aiSource' }
   ];
 
   dropdowns.forEach(dropdown => {
@@ -561,8 +945,39 @@ function initEventListeners() {
 
   // Action buttons
   elements.fetchNewsBtn.addEventListener('click', fetchNews);
-  elements.generateSeriesBtn.addEventListener('click', generateSeries);
   elements.analyzeNewsBtn.addEventListener('click', analyzeNews);
+
+  // Tab Navigation
+  elements.tabButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const tabName = btn.getAttribute('data-tab');
+      switchTab(tabName);
+    });
+  });
+
+  // Mobile Sidebar Toggle
+  if (elements.mobileMenuBtn) {
+    elements.mobileMenuBtn.addEventListener('click', () => {
+      elements.sidebar.classList.add('active');
+      elements.sidebarBackdrop.classList.add('active');
+      playSound('click');
+    });
+  }
+
+  if (elements.closeSidebarBtn) {
+    elements.closeSidebarBtn.addEventListener('click', () => {
+      elements.sidebar.classList.remove('active');
+      elements.sidebarBackdrop.classList.remove('active');
+      playSound('click');
+    });
+  }
+
+  if (elements.sidebarBackdrop) {
+    elements.sidebarBackdrop.addEventListener('click', () => {
+      elements.sidebar.classList.remove('active');
+      elements.sidebarBackdrop.classList.remove('active');
+    });
+  }
 }
 
 // ========== Animations CSS ==========

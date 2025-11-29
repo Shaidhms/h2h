@@ -23,6 +23,7 @@
 <body>
   <div class="app-bg"></div>
   <div class="scanline"></div>
+  <div class="sidebar-backdrop"></div>
 
   <div class="app-container">
     <!-- Header -->
@@ -32,6 +33,8 @@
         <i class="ri-hashtag logo-icon"></i>
       </div>
       <div class="header-actions">
+        <button id="mobile-menu-btn" class="btn btn-icon mobile-only" title="Open Menu"><i
+            class="ri-menu-line"></i></button>
         <button id="guide-btn" class="btn btn-icon" title="How to use"><i class="ri-question-line"></i></button>
       </div>
     </header>
@@ -39,78 +42,155 @@
     <!-- Sidebar -->
     <aside class="sidebar">
       <div class="sidebar-content">
-        <h2 class="sidebar-title"><i class="ri-settings-3-line"></i> SYSTEM CONFIG</h2>
+        <div class="sidebar-header-mobile">
+          <h2 class="sidebar-title"><i class="ri-settings-3-line"></i> SYSTEM CONFIG</h2>
+          <button id="close-sidebar-btn" class="btn btn-icon mobile-only"><i class="ri-close-line"></i></button>
+        </div>
 
-        <div class="form-group">
-          <label><i class="ri-price-tag-3-line"></i> Category</label>
-          <div class="custom-select" id="category-custom-select">
-            <div class="select-selected">
-              <i class="ri-global-line"></i> General
-            </div>
-            <div class="select-items select-hide">
-              <div data-value="general"><i class="ri-global-line"></i> General</div>
-              <div data-value="technology"><i class="ri-computer-line"></i> Technology</div>
-              <div data-value="business"><i class="ri-briefcase-4-line"></i> Business</div>
-              <div data-value="health"><i class="ri-heart-pulse-line"></i> Health</div>
-              <div data-value="science"><i class="ri-flask-line"></i> Science</div>
-              <div data-value="sports"><i class="ri-football-line"></i> Sports</div>
-              <div data-value="entertainment"><i class="ri-movie-2-line"></i> Entertainment</div>
-            </div>
-            <input type="hidden" id="category-select" value="general">
+        <!-- Content Type Selector -->
+        <div class="config-section">
+          <h3 class="section-title"><i class="ri-layout-grid-line"></i> CONTENT TYPE</h3>
+          <div class="content-type-selector">
+            <label class="content-type-option">
+              <input type="radio" name="content-type" value="news" checked>
+              <span><i class="ri-newspaper-line"></i> News</span>
+            </label>
+            <label class="content-type-option">
+              <input type="radio" name="content-type" value="quotes">
+              <span><i class="ri-double-quotes-l"></i> Quotes</span>
+            </label>
+            <label class="content-type-option">
+              <input type="radio" name="content-type" value="ai">
+              <span><i class="ri-robot-line"></i> AI</span>
+            </label>
           </div>
         </div>
 
-        <div class="form-group">
-          <label><i class="ri-global-line"></i> Country</label>
-          <div class="custom-select" id="country-custom-select">
-            <div class="select-selected">
-              <span>🇺🇸</span> United States
+        <!-- News Source Config -->
+        <div class="config-section" id="news-config">
+          <h3 class="section-title"><i class="ri-rss-line"></i> NEWS SOURCE</h3>
+
+          <div class="form-group">
+            <label><i class="ri-price-tag-3-line"></i> Category</label>
+            <div class="custom-select" id="category-custom-select">
+              <div class="select-selected">
+                <i class="ri-global-line"></i> General
+              </div>
+              <div class="select-items select-hide">
+                <div data-value="general"><i class="ri-global-line"></i> General</div>
+                <div data-value="technology"><i class="ri-computer-line"></i> Technology</div>
+                <div data-value="business"><i class="ri-briefcase-4-line"></i> Business</div>
+                <div data-value="health"><i class="ri-heart-pulse-line"></i> Health</div>
+                <div data-value="science"><i class="ri-flask-line"></i> Science</div>
+                <div data-value="sports"><i class="ri-football-line"></i> Sports</div>
+                <div data-value="entertainment"><i class="ri-movie-2-line"></i> Entertainment</div>
+              </div>
+              <input type="hidden" id="category-select" value="general">
             </div>
-            <div class="select-items select-hide">
-              <div data-value="us"><span>🇺🇸</span> United States</div>
-              <div data-value="in"><span>🇮🇳</span> India</div>
-              <div data-value="uk"><span>🇬🇧</span> United Kingdom</div>
-              <div data-value="ca"><span>🇨🇦</span> Canada</div>
-              <div data-value="au"><span>🇦🇺</span> Australia</div>
-              <div data-value="fr"><span>🇫🇷</span> France</div>
-              <div data-value="de"><span>🇩🇪</span> Germany</div>
-              <div data-value="jp"><span>🇯🇵</span> Japan</div>
+          </div>
+
+          <div class="form-group">
+            <label><i class="ri-global-line"></i> Country</label>
+            <div class="custom-select" id="country-custom-select">
+              <div class="select-selected">
+                <span>🇺🇸</span> United States
+              </div>
+              <div class="select-items select-hide">
+                <div data-value="us"><span>🇺🇸</span> United States</div>
+                <div data-value="in"><span>🇮🇳</span> India</div>
+                <div data-value="uk"><span>🇬🇧</span> United Kingdom</div>
+                <div data-value="ca"><span>🇨🇦</span> Canada</div>
+                <div data-value="au"><span>🇦🇺</span> Australia</div>
+                <div data-value="fr"><span>🇫🇷</span> France</div>
+                <div data-value="de"><span>🇩🇪</span> Germany</div>
+                <div data-value="jp"><span>🇯🇵</span> Japan</div>
+              </div>
+              <input type="hidden" id="country-select" value="us">
             </div>
-            <input type="hidden" id="country-select" value="us">
           </div>
         </div>
 
-        <div class="form-group">
-          <label><i class="ri-share-forward-line"></i> Platform</label>
-          <div class="custom-select" id="platform-custom-select">
-            <div class="select-selected">
-              <i class="ri-twitter-x-line"></i> Twitter / X
+        <!-- Quotes Source Config -->
+        <div class="config-section hidden" id="quotes-config">
+          <h3 class="section-title"><i class="ri-book-2-line"></i> BOOK SOURCE</h3>
+
+          <div class="form-group">
+            <label><i class="ri-book-mark-line"></i> Book</label>
+            <div class="custom-select" id="book-custom-select">
+              <div class="select-selected">
+                <i class="ri-book-open-line"></i> Think and Grow Rich
+              </div>
+              <div class="select-items select-hide">
+                <div data-value="think-grow-rich"><i class="ri-book-open-line"></i> Think and Grow Rich</div>
+                <div data-value="atomic-habits"><i class="ri-book-open-line"></i> Atomic Habits</div>
+                <div data-value="7-habits"><i class="ri-book-open-line"></i> The 7 Habits</div>
+                <div data-value="power-of-now"><i class="ri-book-open-line"></i> The Power of Now</div>
+                <div data-value="mans-search"><i class="ri-book-open-line"></i> Man's Search for Meaning</div>
+                <div data-value="alchemist"><i class="ri-book-open-line"></i> The Alchemist</div>
+              </div>
+              <input type="hidden" id="book-select" value="think-grow-rich">
             </div>
-            <div class="select-items select-hide">
-              <div data-value="twitter"><i class="ri-twitter-x-line"></i> Twitter / X</div>
-              <div data-value="linkedin"><i class="ri-linkedin-fill"></i> LinkedIn</div>
-              <div data-value="instagram"><i class="ri-instagram-line"></i> Instagram</div>
-              <div data-value="facebook"><i class="ri-facebook-fill"></i> Facebook</div>
-              <div data-value="tiktok"><i class="ri-tiktok-fill"></i> TikTok</div>
-            </div>
-            <input type="hidden" id="platform-select" value="twitter">
           </div>
         </div>
 
-        <div class="form-group">
-          <label><i class="ri-equalizer-line"></i> Tone</label>
-          <div class="custom-select" id="tone-custom-select">
-            <div class="select-selected">
-              <i class="ri-book-open-line"></i> Informative
+        <!-- AI Source Config -->
+        <div class="config-section hidden" id="ai-config">
+          <h3 class="section-title"><i class="ri-brain-line"></i> AI SOURCE</h3>
+
+          <div class="form-group">
+            <label><i class="ri-links-line"></i> Source</label>
+            <div class="custom-select" id="ai-source-custom-select">
+              <div class="select-selected">
+                <i class="ri-openai-line"></i> OpenAI Blog
+              </div>
+              <div class="select-items select-hide">
+                <div data-value="openai"><i class="ri-openai-line"></i> OpenAI Blog</div>
+                <div data-value="google-ai"><i class="ri-google-line"></i> Google AI</div>
+                <div data-value="huggingface"><i class="ri-user-smile-line"></i> Hugging Face</div>
+                <div data-value="anthropic"><i class="ri-android-line"></i> Anthropic</div>
+                <div data-value="deepmind"><i class="ri-mind-map"></i> DeepMind</div>
+                <div data-value="mit-tech"><i class="ri-newspaper-line"></i> MIT Tech Review</div>
+              </div>
+              <input type="hidden" id="ai-source-select" value="openai">
             </div>
-            <div class="select-items select-hide">
-              <div data-value="informative"><i class="ri-book-open-line"></i> Informative</div>
-              <div data-value="engaging"><i class="ri-emotion-happy-line"></i> Engaging</div>
-              <div data-value="professional"><i class="ri-user-tie-line"></i> Professional</div>
-              <div data-value="casual"><i class="ri-cup-line"></i> Casual</div>
-              <div data-value="humorous"><i class="ri-emotion-laugh-line"></i> Humorous</div>
+          </div>
+        </div>
+
+        <!-- Shared Settings -->
+        <div class="config-section">
+          <h3 class="section-title"><i class="ri-share-forward-line"></i> SOCIAL MEDIA</h3>
+
+          <div class="form-group">
+            <label><i class="ri-share-forward-line"></i> Platform</label>
+            <div class="custom-select" id="platform-custom-select">
+              <div class="select-selected">
+                <i class="ri-twitter-x-line"></i> Twitter / X
+              </div>
+              <div class="select-items select-hide">
+                <div data-value="twitter"><i class="ri-twitter-x-line"></i> Twitter / X</div>
+                <div data-value="linkedin"><i class="ri-linkedin-fill"></i> LinkedIn</div>
+                <div data-value="instagram"><i class="ri-instagram-line"></i> Instagram</div>
+                <div data-value="facebook"><i class="ri-facebook-fill"></i> Facebook</div>
+              </div>
+              <input type="hidden" id="platform-select" value="twitter">
             </div>
-            <input type="hidden" id="tone-select" value="informative">
+          </div>
+
+          <div class="form-group">
+            <label><i class="ri-equalizer-line"></i> Tone</label>
+            <div class="custom-select" id="tone-custom-select">
+              <div class="select-selected">
+                <i class="ri-book-open-line"></i> Informative
+              </div>
+              <div class="select-items select-hide">
+                <div data-value="informative"><i class="ri-book-open-line"></i> Informative</div>
+                <div data-value="engaging"><i class="ri-emotion-happy-line"></i> Engaging</div>
+                <div data-value="professional"><i class="ri-user-tie-line"></i> Professional</div>
+                <div data-value="casual"><i class="ri-cup-line"></i> Casual</div>
+                <div data-value="humorous"><i class="ri-emotion-laugh-line"></i> Humorous</div>
+              </div>
+              <input type="hidden" id="tone-select" value="informative">
+            </div>
           </div>
         </div>
 
@@ -180,7 +260,11 @@
           <!-- Tab 2: Create Content -->
           <div class="tab-pane" id="create-content">
             <div class="tab-header">
-              <h2><i class="ri-magic-line"></i> CONTENT GENERATOR</h2>
+              <div>
+                <h2><i class="ri-magic-line"></i> CONTENT GENERATOR</h2>
+                <p class="tab-description">Select a news item to transform it into an engaging post for your chosen
+                  platform.</p>
+              </div>
             </div>
             <div id="selected-article-container" class="selected-article-container">
               <div class="empty-state">
@@ -193,9 +277,10 @@
           <!-- Tab 3: Series -->
           <div class="tab-pane" id="series">
             <div class="tab-header">
-              <h2><i class="ri-stack-line"></i> THREAD BUILDER</h2>
-              <button id="generate-series-btn" class="btn btn-primary btn-glow" disabled><i class="ri-film-line"></i>
-                GENERATE SERIES</button>
+              <div>
+                <h2><i class="ri-stack-line"></i> THREAD BUILDER</h2>
+                <p class="tab-description">Combine multiple articles into a coherent thread or narrative series.</p>
+              </div>
             </div>
             <div id="series-container" class="series-container">
               <div class="empty-state">
@@ -208,7 +293,11 @@
           <!-- Tab 4: Analytics -->
           <div class="tab-pane" id="analytics">
             <div class="tab-header">
-              <h2><i class="ri-pie-chart-2-line"></i> STRATEGIC ANALYSIS</h2>
+              <div>
+                <h2><i class="ri-pie-chart-2-line"></i> STRATEGIC ANALYSIS</h2>
+                <p class="tab-description">Get AI-driven insights and strategic analysis of the current news landscape.
+                </p>
+              </div>
               <button id="analyze-news-btn" class="btn btn-primary btn-glow" disabled><i class="ri-search-eye-line"></i>
                 RUN DIAGNOSTICS</button>
             </div>

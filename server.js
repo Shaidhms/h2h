@@ -80,6 +80,134 @@ Constraints:
   }
 });
 
+// Generate motivational quotes from books
+app.get('/api/generate-quotes', async (req, res) => {
+  try {
+    if (!process.env.OPENAI_API_KEY) {
+      return res.status(400).json({ success: false, error: 'OpenAI API key missing' });
+    }
+
+    const { book = 'think-grow-rich', limit = 5 } = req.query;
+
+    const bookNames = {
+      'think-grow-rich': 'Think and Grow Rich by Napoleon Hill',
+      'atomic-habits': 'Atomic Habits by James Clear',
+      '7-habits': 'The 7 Habits of Highly Effective People by Stephen Covey',
+      'power-of-now': 'The Power of Now by Eckhart Tolle',
+      'mans-search': "Man's Search for Meaning by Viktor Frankl",
+      'alchemist': 'The Alchemist by Paulo Coelho'
+    };
+
+    const bookTitle = bookNames[book] || 'Think and Grow Rich by Napoleon Hill';
+
+    const systemPrompt = `You are a wisdom curator and motivational speaker.
+Return ONLY valid JSON (no markdown, no commentary).
+JSON must be an array of objects with keys:
+- title (a short, catchy title for the quote/lesson)
+- description (2-3 sentences explaining the context and application)
+- source (the book name)
+- published_at (today's date in YYYY-MM-DD format)
+- url (use "#" as placeholder)
+Constraints:
+- Extract powerful, actionable wisdom from "${bookTitle}"
+- Each entry should feel like a mini-lesson or insight
+- Make titles inspiring and tweet-worthy
+- Return exactly ${limit} items`;
+
+    const userPrompt = `Book: ${bookTitle}\nNumber of quotes/lessons: ${limit}`;
+
+    const response = await openai.chat.completions.create({
+      model: process.env.OPENAI_NEWS_MODEL || 'gpt-4o-mini',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ],
+      temperature: 0.7,
+      max_tokens: 600,
+    });
+
+    const content = response.choices[0].message.content.trim();
+
+    try {
+      const articles = JSON.parse(content);
+      if (!Array.isArray(articles)) {
+        throw new Error('Expected list of quotes');
+      }
+      return res.json({ success: true, articles: articles.slice(0, limit), count: articles.length });
+    } catch (e) {
+      return res.status(502).json({ success: false, error: `Invalid JSON from GPT: ${e.message}`, raw: content });
+    }
+  } catch (error) {
+    console.error('Error generating quotes:', error);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Generate AI-related content from sources
+app.get('/api/generate-ai-content', async (req, res) => {
+  try {
+    if (!process.env.OPENAI_API_KEY) {
+      return res.status(400).json({ success: false, error: 'OpenAI API key missing' });
+    }
+
+    const { source = 'openai', limit = 5 } = req.query;
+    const today = new Date().toISOString().split('T')[0];
+
+    const sourceNames = {
+      'openai': 'OpenAI Blog',
+      'google-ai': 'Google AI Blog',
+      'huggingface': 'Hugging Face Blog',
+      'anthropic': 'Anthropic News',
+      'deepmind': 'DeepMind Blog',
+      'mit-tech': 'MIT Technology Review (AI Section)'
+    };
+
+    const sourceName = sourceNames[source] || 'OpenAI Blog';
+
+    const systemPrompt = `You are an AI industry analyst and tech journalist.
+Return ONLY valid JSON (no markdown, no commentary).
+JSON must be an array of objects with keys:
+- title (headline about AI development, research, or news)
+- description (2-3 sentences explaining the AI advancement or news)
+- source (${sourceName})
+- published_at (must be ${today} or within the last 2 days; use ISO-like YYYY-MM-DD)
+- url (use "#" as placeholder)
+Constraints:
+- Focus on cutting-edge AI developments, research breakthroughs, product launches, or industry trends
+- Make content feel current and relevant to ${sourceName}
+- Include topics like: LLMs, computer vision, robotics, ML research, AI ethics, AI products
+- Return exactly ${limit} items
+- Be realistic and timely`;
+
+    const userPrompt = `Source: ${sourceName}\nNumber of articles: ${limit}`;
+
+    const response = await openai.chat.completions.create({
+      model: process.env.OPENAI_NEWS_MODEL || 'gpt-4o-mini',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ],
+      temperature: 0.6,
+      max_tokens: 600,
+    });
+
+    const content = response.choices[0].message.content.trim();
+
+    try {
+      const articles = JSON.parse(content);
+      if (!Array.isArray(articles)) {
+        throw new Error('Expected list of AI articles');
+      }
+      return res.json({ success: true, articles: articles.slice(0, limit), count: articles.length });
+    } catch (e) {
+      return res.status(502).json({ success: false, error: `Invalid JSON from GPT: ${e.message}`, raw: content });
+    }
+  } catch (error) {
+    console.error('Error generating AI content:', error);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Create social media content
 app.post('/api/create-social-content', async (req, res) => {
   try {
@@ -96,17 +224,36 @@ app.post('/api/create-social-content', async (req, res) => {
       custom_angle = '',
     } = req.body;
 
-    const { title = '', description = '', url = '' } = article;
+    const { title = '', description = '', source = '', url = '' } = article;
+
+    // Detect content type based on source
+    let contentType = 'news';
+    if (source.includes('Napoleon Hill') || source.includes('James Clear') || source.includes('Stephen Covey') ||
+      source.includes('Eckhart Tolle') || source.includes('Viktor Frankl') || source.includes('Paulo Coelho')) {
+      contentType = 'quote';
+    } else if (source.includes('OpenAI') || source.includes('Google AI') || source.includes('Hugging Face') ||
+      source.includes('Anthropic') || source.includes('DeepMind') || source.includes('MIT Tech')) {
+      contentType = 'ai';
+    }
 
     const platformConfigs = {
       twitter: { char_limit: 280, style: 'concise and engaging' },
       linkedin: { char_limit: 700, style: 'professional and insightful' },
       instagram: { char_limit: 500, style: 'visual and catchy' },
       facebook: { char_limit: 400, style: 'conversational' },
-      tiktok: { char_limit: 300, style: 'trendy and casual' },
     };
 
     const config = platformConfigs[platform] || platformConfigs.twitter;
+
+    // Adjust prompt based on content type
+    let contentContext = '';
+    if (contentType === 'quote') {
+      contentContext = 'This is a motivational quote/lesson from a famous book. Make it inspirational and actionable.';
+    } else if (contentType === 'ai') {
+      contentContext = 'This is AI industry news/development. Make it informative and highlight the significance.';
+    } else {
+      contentContext = 'This is current news. Make it timely and relevant.';
+    }
 
     const systemPrompt = `You are a social media strategist. Create an engaging ${platform} post.
 
@@ -116,10 +263,11 @@ Requirements:
 - Style: ${config.style}
 - Include hashtags: ${include_hashtags}
 - Include link: ${include_link}
-- Custom angle: ${custom_angle || 'Standard news sharing'}
+- Custom angle: ${custom_angle || 'Standard sharing'}
+- Context: ${contentContext}
 Return plain text only (no JSON).`;
 
-    const userPrompt = `Title: ${title}\nDescription: ${description}\nURL: ${include_link ? url : ''}`;
+    const userPrompt = `Title: ${title}\nDescription: ${description}\nSource: ${source}\nURL: ${include_link ? url : ''}`;
 
     const response = await openai.chat.completions.create({
       model: process.env.OPENAI_CONTENT_MODEL || 'gpt-4o',
@@ -135,6 +283,85 @@ Return plain text only (no JSON).`;
     return res.json({ success: true, content, platform });
   } catch (error) {
     console.error('Error creating social content:', error);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Generate image with DALL-E 3
+app.post('/api/generate-image', async (req, res) => {
+  try {
+    if (!process.env.OPENAI_API_KEY) {
+      return res.status(400).json({ success: false, error: 'OpenAI API key missing' });
+    }
+
+    const { article = {} } = req.body;
+    const { title = '', description = '', source = '' } = article;
+
+    // Detect content type for optimized prompts
+    let contentType = 'news';
+    let styleGuide = 'photorealistic news photography style';
+
+    if (source.includes('Napoleon Hill') || source.includes('James Clear') || source.includes('Stephen Covey') ||
+      source.includes('Eckhart Tolle') || source.includes('Viktor Frankl') || source.includes('Paulo Coelho')) {
+      contentType = 'quote';
+      styleGuide = 'inspirational, minimalist design with warm colors and motivational atmosphere';
+    } else if (source.includes('OpenAI') || source.includes('Google AI') || source.includes('Hugging Face') ||
+      source.includes('Anthropic') || source.includes('DeepMind') || source.includes('MIT Tech')) {
+      contentType = 'ai';
+      styleGuide = 'futuristic tech visualization with modern, sleek design and digital elements';
+    }
+
+    // Create optimized DALL-E prompt
+    const imagePrompt = `Create a visually stunning image for social media about: "${title}". 
+${description ? `Context: ${description.substring(0, 200)}` : ''}
+Style: ${styleGuide}. 
+The image should be engaging, professional, and perfect for ${contentType === 'quote' ? 'inspirational' : contentType === 'ai' ? 'tech-focused' : 'news'} social media posts.
+Avoid text in the image.`;
+
+    console.log('Generating image with prompt:', imagePrompt.substring(0, 150) + '...');
+
+    const response = await openai.images.generate({
+      model: 'dall-e-3',
+      prompt: imagePrompt,
+      n: 1,
+      size: '1024x1024',
+      quality: 'standard',
+    });
+
+    const imageUrl = response.data[0].url;
+
+    return res.json({
+      success: true,
+      imageUrl,
+      contentType,
+      prompt: imagePrompt.substring(0, 200) + '...' // For debugging
+    });
+  } catch (error) {
+    console.error('Error generating image:', error);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Proxy image to bypass CORS
+app.get('/api/proxy-image', async (req, res) => {
+  try {
+    const { url } = req.query;
+    if (!url) {
+      return res.status(400).json({ success: false, error: 'URL missing' });
+    }
+
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch image: ${response.statusText}`);
+    }
+
+    const buffer = await response.arrayBuffer();
+    const bufferObj = Buffer.from(buffer);
+
+    res.set('Content-Type', 'image/png');
+    res.send(bufferObj);
+  } catch (error) {
+    console.error('Error proxying image:', error);
     return res.status(500).json({ success: false, error: error.message });
   }
 });
